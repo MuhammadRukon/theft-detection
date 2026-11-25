@@ -54,7 +54,7 @@ client/            React + Vite + TS (exists)
 server/            FastAPI, uv, ruff, pytest
 infra/mediamtx.yml
 docs/
-dev.ps1            starts MediaMTX, uvicorn --reload, vite
+dev.ps1            starts MediaMTX, uvicorn (no --reload), vite
 ```
 
 ## Policies
