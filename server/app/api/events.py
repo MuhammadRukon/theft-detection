@@ -1,10 +1,11 @@
 import asyncio
+import time
 from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.events import StatsEvent, format_sse
+from app.events import DetectionsEvent, StatsEvent, format_sse
 
 router = APIRouter()
 
@@ -17,10 +18,19 @@ async def events(request: Request, camera_id: str):
         raise HTTPException(404, f"unknown camera_id {camera_id!r}")
 
     async def stream():
-        # Starlette cancels this generator on client disconnect, ending the loop.
-        while True:
-            yield format_sse("stats", StatsEvent(**asdict(source.stats())))
-            await asyncio.sleep(1)
+        # Starlette cancels/closes this generator on client disconnect; `with` then unsubscribes.
+        with request.app.state.bus.subscribe() as q:
+            next_stats = 0.0
+            while True:
+                if time.monotonic() >= next_stats:
+                    yield format_sse("stats", StatsEvent(**asdict(source.stats())))
+                    next_stats = time.monotonic() + 1
+                try:
+                    ev = await asyncio.wait_for(q.get(), max(next_stats - time.monotonic(), 0))
+                except TimeoutError:
+                    continue
+                if isinstance(ev, DetectionsEvent) and ev.camera_id == camera_id:
+                    yield format_sse("detections", ev)
 
     return StreamingResponse(
         stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"}

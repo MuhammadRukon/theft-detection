@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.api.events import router as events_router
 from app.config import Settings
+from app.events import EventBus
 from app.sources import make_source
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -15,6 +16,8 @@ log = logging.getLogger("app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg = Settings()
+    bus = app.state.bus = EventBus()
+    bus.bind(asyncio.get_running_loop())
     source = app.state.source = make_source(cfg.camera_id, cfg.source_url)
     source.start()
 
