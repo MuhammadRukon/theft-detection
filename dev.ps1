@@ -18,7 +18,7 @@ $procs = @()
 try {
     $procs += Start-Child $mtx 'infra\mediamtx.yml' $root
     $procs += Start-Child 'uv' 'run uvicorn app.main:app --host 127.0.0.1 --port 8000' (Join-Path $root 'server')
-    $procs += Start-Child 'bun' 'run dev --host 127.0.0.1' (Join-Path $root 'client')
+    $procs += Start-Child 'bun' 'run dev --host 127.0.0.1 --strictPort' (Join-Path $root 'client')
     Write-Host 'Running: MediaMTX, server :8000, client http://127.0.0.1:5173. Ctrl+C to stop.'
     while (-not ($procs | Where-Object HasExited)) { Start-Sleep -Seconds 1 }
     Write-Warning 'A child process exited; stopping the rest.'

@@ -15,8 +15,6 @@ export default function StatsPanel() {
         <dd>{stats?.width ? `${stats.width}x${stats.height}` : dash}</dd>
         <dt>Decode</dt>
         <dd>{stats?.decode_ms != null ? `${stats.decode_ms} ms` : dash}</dd>
-        <dt>Dropped</dt>
-        <dd>{stats ? `${stats.frames_dropped} / ${stats.frames_total}` : dash}</dd>
       </dl>
       <p className="mt-3 text-sm text-gray-500">Events: {connection}</p>
     </div>

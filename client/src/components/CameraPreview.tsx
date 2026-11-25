@@ -10,7 +10,13 @@ export default function CameraPreview() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
+  // Bumped by stop/unmount so an in-flight startCamera knows it was cancelled.
+  const runRef = useRef(0);
+  const [isStarting, setIsStarting] = useState(false);
+
   async function startCamera() {
+    const run = ++runRef.current;
+    setIsStarting(true);
     try {
       setError(null);
 
@@ -18,6 +24,11 @@ export default function CameraPreview() {
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } },
         audio: false,
       });
+
+      if (run !== runRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
 
       streamRef.current = stream;
 
@@ -28,7 +39,12 @@ export default function CameraPreview() {
       setIsStreaming(true);
 
       try {
-        stopWhipRef.current = await startWhip(stream);
+        const stopWhip = await startWhip(stream);
+        if (run !== runRef.current) {
+          void stopWhip();
+          return;
+        }
+        stopWhipRef.current = stopWhip;
         setIsPublishing(true);
       } catch (err) {
         setError(
@@ -37,10 +53,14 @@ export default function CameraPreview() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to access camera");
+    } finally {
+      if (run === runRef.current) setIsStarting(false);
     }
   }
 
   function stopCamera() {
+    runRef.current++;
+    setIsStarting(false);
     void stopWhipRef.current?.();
     stopWhipRef.current = null;
     setIsPublishing(false);
@@ -58,6 +78,7 @@ export default function CameraPreview() {
 
   useEffect(() => {
     return () => {
+      runRef.current++;
       void stopWhipRef.current?.();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
@@ -78,7 +99,7 @@ export default function CameraPreview() {
       <div className="flex gap-3">
         <button
           onClick={startCamera}
-          disabled={isStreaming}
+          disabled={isStreaming || isStarting}
           className="rounded-lg bg-green-600 px-4 py-2 text-white disabled:opacity-50"
         >
           Start Camera
