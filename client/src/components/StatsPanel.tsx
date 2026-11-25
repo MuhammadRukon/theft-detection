@@ -1,20 +1,37 @@
-import { STREAM_PATH } from "../lib/config";
-import { useStats } from "../hooks/useStats";
+import type { EventsConnection } from "../hooks/useCameraEvents";
+import type { StatsEvent } from "../types/events";
 
-export default function StatsPanel() {
-  const { stats, connection } = useStats(STREAM_PATH);
-  const dash = "-";
+const dash = "-";
+const ms = (v: number | null | undefined) => (v != null ? `${v} ms` : dash);
+const fixed = (v: number | null | undefined) => (v != null ? v.toFixed(1) : dash);
 
+export default function StatsPanel({
+  stats,
+  connection,
+}: {
+  stats: StatsEvent | null;
+  connection: EventsConnection;
+}) {
   return (
     <div className="p-6">
       <h1 className="mb-4 text-2xl font-bold">Incoming stream</h1>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
         <dt>FPS</dt>
-        <dd>{stats ? stats.fps.toFixed(1) : dash}</dd>
+        <dd>{fixed(stats?.fps)}</dd>
         <dt>Resolution</dt>
         <dd>{stats?.width ? `${stats.width}x${stats.height}` : dash}</dd>
         <dt>Decode</dt>
-        <dd>{stats?.decode_ms != null ? `${stats.decode_ms} ms` : dash}</dd>
+        <dd>{ms(stats?.decode_ms)}</dd>
+        <dt>Inference FPS</dt>
+        <dd>{fixed(stats?.inference_fps)}</dd>
+        <dt>Inference p50 / p95</dt>
+        <dd>
+          {stats?.inference_ms_p50 != null && stats.inference_ms_p95 != null
+            ? `${stats.inference_ms_p50} / ${stats.inference_ms_p95} ms`
+            : dash}
+        </dd>
+        <dt>End-to-end latency</dt>
+        <dd>{ms(stats?.e2e_latency_ms)}</dd>
       </dl>
       <p className="mt-3 text-sm text-gray-500">Events: {connection}</p>
     </div>

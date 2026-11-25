@@ -10,6 +10,7 @@ type Props = {
   error: string | null;
   onStart: () => void;
   onStop: () => void;
+  overlay?: ReactNode; // drawn on top of the video
   children: ReactNode; // status line text
 };
 
@@ -19,13 +20,16 @@ export default function SessionPanel(p: Props) {
     <div className="p-6">
       <h1 className="mb-4 text-2xl font-bold">{p.title}</h1>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="mb-4 w-full max-w-2xl rounded-xl bg-black"
-      />
+      <div className="relative mb-4 w-full max-w-2xl">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="block w-full rounded-xl bg-black"
+        />
+        {p.overlay}
+      </div>
 
       <div className="flex gap-3">
         <button

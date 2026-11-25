@@ -1,9 +1,11 @@
 import { useRef } from "react";
 import { useSession } from "../hooks/useSession";
 import { startWhep } from "../lib/whep";
+import type { DetectionsEvent } from "../types/events";
+import DetectionOverlay from "./DetectionOverlay";
 import SessionPanel from "./SessionPanel";
 
-export default function StreamViewer() {
+export default function StreamViewer({ detections }: { detections: DetectionsEvent | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const session = useSession(
@@ -26,6 +28,9 @@ export default function StreamViewer() {
       startLabel="Connect"
       stopLabel="Disconnect"
       {...session}
+      overlay={
+        <DetectionOverlay videoRef={videoRef} detections={detections} active={session.active} />
+      }
       onStart={session.start}
       onStop={disconnect}
     >

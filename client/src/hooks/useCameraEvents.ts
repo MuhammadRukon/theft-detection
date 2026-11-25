@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import type { StatsEvent } from "../types/events";
+import type { DetectionsEvent, StatsEvent } from "../types/events";
 
-export type StatsConnection = "connecting" | "open" | "closed";
+export type EventsConnection = "connecting" | "open" | "closed";
 
-export function useStats(cameraId: string) {
+// One EventSource per camera, shared by everything that shows stats or detections.
+export function useCameraEvents(cameraId: string) {
   const [stats, setStats] = useState<StatsEvent | null>(null);
-  const [connection, setConnection] = useState<StatsConnection>("connecting");
+  const [detections, setDetections] = useState<DetectionsEvent | null>(null);
+  const [connection, setConnection] = useState<EventsConnection>("connecting");
 
   useEffect(() => {
     let es: EventSource;
@@ -22,6 +24,7 @@ export function useStats(cameraId: string) {
         timer = window.setTimeout(open, 2000);
       };
       es.addEventListener("stats", (e) => setStats(JSON.parse((e as MessageEvent).data)));
+      es.addEventListener("detections", (e) => setDetections(JSON.parse((e as MessageEvent).data)));
     };
     open();
     return () => {
@@ -30,5 +33,5 @@ export function useStats(cameraId: string) {
     };
   }, [cameraId]);
 
-  return { stats, connection };
+  return { stats, detections, connection };
 }
