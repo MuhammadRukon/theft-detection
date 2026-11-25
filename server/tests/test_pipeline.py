@@ -25,7 +25,15 @@ class StubSource:
     def _run(self):
         while not self._stop.wait(self.interval):
             self.produced += 1
-            self._frame = Frame("cam1", time.time(), 0.0, None, W, H, np.zeros((H, W, 3), np.uint8))
+            self._frame = Frame(
+                "cam1",
+                time.time(),
+                self.produced * self.interval,
+                None,
+                W,
+                H,
+                np.zeros((H, W, 3), np.uint8),
+            )
 
     def latest(self):
         return self._frame
@@ -190,3 +198,31 @@ def test_same_frame_not_reprocessed():
     p.stop()
     src.close()
     assert det.calls == 1
+
+
+def test_engine_alert_goes_through_on_alert_and_engine_errors_are_contained():
+    from app.behavior import BehaviorEngine, DwellRule, Zone
+
+    zone = Zone("z", ((0, 0), (1, 0), (1, 1), (0, 1)), 0.05)
+    alerts = []
+    src, bus, p = make(FakeDetector([BOX]), interval=0.01)
+    p._engine = BehaviorEngine("cam1", [zone], [DwellRule()])
+    p._on_alert = alerts.append
+    p.start()
+    assert wait_for(lambda: alerts)
+    p.stop()
+    src.close()
+    a = alerts[0]
+    assert a.type == "dwell" and a.zone == "z" and a.camera_id == "cam1" and a.score == 60
+    assert any(e.tracks for e in bus.events)
+
+    def boom(alert):
+        raise RuntimeError("handler bug")
+
+    src, bus, p = make(FakeDetector([BOX]))
+    p._engine = BehaviorEngine("cam1", [zone], [DwellRule(cooldown_s=0)])
+    p._on_alert = boom
+    p.start()
+    assert wait_for(lambda: len(bus.events) >= 10)  # detections keep flowing
+    p.stop()
+    src.close()

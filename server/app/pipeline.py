@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+from app.behavior import Alert, BehaviorEngine
 from app.detection.base import Detector
 from app.events import DetectionsEvent, EventBus, Track
 from app.metrics import RollingStats
@@ -41,7 +42,8 @@ class Pipeline:
         bus: EventBus,
         camera_id: str,
         fps: float,
-        on_alert: Callable[[object], None] | None = None,
+        on_alert: Callable[[Alert], None] | None = None,
+        engine: BehaviorEngine | None = None,
     ):
         self._source = source
         self._detector = detector
@@ -49,9 +51,10 @@ class Pipeline:
         self._bus = bus
         self._camera_id = camera_id
         self._period = 1 / fps
-        # Alert seam. Phases 2-3 run the behavior rules after the tracker in process() and call
-        # this per alert; eval.py collects them here. An alert exposes `type`, `zone`, `src_ts`.
+        # Alert seam: process() runs the engine after the tracker and calls this per alert;
+        # eval.py collects them here.
         self._on_alert = on_alert
+        self._engine = engine
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._fps = RollingFps()
@@ -123,7 +126,13 @@ class Pipeline:
             )
             for t in tracked
         ]
-        # Phase 2: rules(tracked, frame.src_ts) -> self._on_alert(alert) goes here.
+        if self._engine:
+            try:  # a rule or alert-handler bug must never stop detections being published
+                for alert in self._engine.update(tracked, w, h, frame.src_ts, frame.ts):
+                    if self._on_alert:
+                        self._on_alert(alert)
+            except Exception:
+                log.exception("%s: behavior engine error", self._camera_id)
         latency_ms = (time.time() - frame.ts) * 1000
         # Published even when empty, so the overlay clears.
         self._bus.publish(

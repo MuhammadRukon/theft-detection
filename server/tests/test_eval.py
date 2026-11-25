@@ -78,3 +78,33 @@ def test_main_bad_inputs_fail(tmp_path, capsys):
     make_clip(tmp_path / "nolabel.mp4")
     assert main(["--clips", str(tmp_path), "--detector", "fake"]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+def test_eval_replay_raises_dwell_alert_end_to_end(tmp_path, capsys, monkeypatch):
+    zones = tmp_path / "zones.json"
+    zones.write_text(
+        json.dumps(
+            {
+                "cam1": [
+                    {
+                        "name": "door",
+                        "polygon": [[0, 0.5], [0.5, 0.5], [0.5, 1], [0, 1]],
+                        "dwell_s": 1,
+                    }
+                ]
+            }
+        )
+    )
+    make_clip(tmp_path / "theft.mp4", seconds=4)
+    label(tmp_path / "theft.json", [{"type": "dwell", "zone": "door", "at_s": 1}])
+    # feet at (17.5/64, 40/48) = inside the zone
+    monkeypatch.setattr(
+        "tools.eval.FakeDetector", lambda: FakeDetector([Detection(0, "person", 0.9, 5, 5, 30, 40)])
+    )
+    assert main(["--clips", str(tmp_path), "--detector", "fake", "--zones", str(zones)]) == 0
+    out = capsys.readouterr().out
+    assert "PASS" in out and "theft.mp4" in out
+
+    assert (
+        main(["--clips", str(tmp_path), "--detector", "fake", "--zones", str(tmp_path / "x")]) == 1
+    )
