@@ -14,6 +14,7 @@ router = APIRouter()
 async def events(request: Request, camera_id: str):
     # One source per process for now; an unknown camera_id is a 404 rather than a silent stream.
     source = request.app.state.source
+    pipeline = getattr(request.app.state, "pipeline", None)
     if camera_id != source.camera_id:
         raise HTTPException(404, f"unknown camera_id {camera_id!r}")
 
@@ -23,7 +24,8 @@ async def events(request: Request, camera_id: str):
             next_stats = 0.0
             while True:
                 if time.monotonic() >= next_stats:
-                    yield format_sse("stats", StatsEvent(**asdict(source.stats())))
+                    pipe = asdict(pipeline.stats()) if pipeline else {}
+                    yield format_sse("stats", StatsEvent(**asdict(source.stats()), **pipe))
                     next_stats = time.monotonic() + 1
                 try:
                     ev = await asyncio.wait_for(q.get(), max(next_stats - time.monotonic(), 0))

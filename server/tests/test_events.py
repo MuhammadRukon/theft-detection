@@ -139,3 +139,31 @@ def test_bus_unsubscribe_stops_delivery():
         assert q.empty() and not bus._subs
 
     asyncio.run(go())
+
+
+def test_route_merges_pipeline_stats():
+    from app.pipeline import PipelineStats
+
+    class Src:
+        camera_id = "cam1"
+
+        def stats(self):
+            return SourceStats(**STATS)
+
+    class Pipe:
+        def stats(self):
+            return PipelineStats(5.0, 30.0, 40.0, 120.0)
+
+    state = SimpleNamespace(source=Src(), bus=EventBus(), pipeline=Pipe())
+    req = SimpleNamespace(app=SimpleNamespace(state=state))
+
+    async def go():
+        r = await events(req, camera_id="cam1")
+        out = await anext(r.body_iterator)
+        await r.body_iterator.aclose()
+        return out
+
+    d = json.loads(asyncio.run(go()).split("data: ")[1])
+    assert (d["fps"], d["inference_fps"], d["inference_ms_p95"], d["e2e_latency_ms"]) == (
+        15.0, 5.0, 40.0, 120.0,
+    )  # fmt: skip
