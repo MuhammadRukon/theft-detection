@@ -30,8 +30,12 @@ export default function StatsPanel({
             ? `${stats.inference_ms_p50} / ${stats.inference_ms_p95} ms`
             : dash}
         </dd>
-        <dt>End-to-end latency</dt>
+        <dt>Server latency (decode→publish)</dt>
         <dd>{ms(stats?.e2e_latency_ms)}</dd>
+        <dt>Detector</dt>
+        <dd className={stats?.pipeline_status === "failed" ? "font-semibold text-red-600" : undefined}>
+          {stats?.pipeline_status ?? dash}
+        </dd>
       </dl>
       <p className="mt-3 text-sm text-gray-500">Events: {connection}</p>
     </div>

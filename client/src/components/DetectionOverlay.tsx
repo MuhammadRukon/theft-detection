@@ -18,6 +18,9 @@ export default function DetectionOverlay({
   active: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Latest data lives in a ref so the observers below are set up once, not per 5 Hz event.
+  const latest = useRef({ detections, active, at: 0 });
+  const drawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,19 +28,26 @@ export default function DetectionOverlay({
     const ctx = canvas?.getContext("2d");
     if (!canvas || !video || !ctx) return;
 
-    let show = active && detections != null;
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const { clientWidth: cw, clientHeight: ch } = canvas;
-      canvas.width = Math.round(cw * dpr); // also clears
-      canvas.height = Math.round(ch * dpr);
-      if (!show || !detections) return;
+      const w = Math.round(cw * dpr);
+      const h = Math.round(ch * dpr);
+      // Assigning width/height reallocates the backing store, so only do it on change.
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const { detections: d, active: on, at } = latest.current;
+      if (!on || !d || performance.now() - at >= STALE_MS) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const r = containRect(video.videoWidth, video.videoHeight, cw, ch);
       ctx.font = "12px sans-serif";
       ctx.textBaseline = "top";
       ctx.lineWidth = 2;
-      for (const t of detections.tracks) {
+      for (const t of d.tracks) {
         const x = r.x + t.x1 * r.w;
         const y = r.y + t.y1 * r.h;
         const label = `#${t.track_id} ${Math.round(t.conf * 100)}%`;
@@ -49,20 +59,26 @@ export default function DetectionOverlay({
       }
     };
 
-    draw();
-    const timer = window.setTimeout(() => {
-      show = false;
-      draw();
-    }, STALE_MS);
+    drawRef.current = draw;
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
     video.addEventListener("loadedmetadata", draw);
+    video.addEventListener("resize", draw); // WebRTC can change resolution mid-stream
     return () => {
-      window.clearTimeout(timer);
       ro.disconnect();
       video.removeEventListener("loadedmetadata", draw);
+      video.removeEventListener("resize", draw);
     };
-  }, [videoRef, detections, active]);
+  }, [videoRef]);
+
+  useEffect(() => {
+    // Stamp only on new detections so toggling `active` never revives old boxes.
+    const at = latest.current.detections === detections ? latest.current.at : performance.now();
+    latest.current = { detections, active, at };
+    drawRef.current();
+    const timer = window.setTimeout(() => drawRef.current(), STALE_MS);
+    return () => window.clearTimeout(timer);
+  }, [detections, active]);
 
   return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />;
 }

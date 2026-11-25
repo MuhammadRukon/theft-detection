@@ -6,12 +6,14 @@ export interface StatsEvent {
   height: number | null;
   decode_ms: number | null;
   frames_total: number;
+  // Frames overwritten before detection consumed them (about ingest fps minus inference fps per second, by design).
   frames_dropped: number;
   // Null until the detection pipeline has produced a result.
   inference_fps: number | null;
   inference_ms_p50: number | null;
   inference_ms_p95: number | null;
   e2e_latency_ms: number | null;
+  pipeline_status?: "loading" | "running" | "failed" | null;
 }
 
 export interface Track {
