@@ -31,3 +31,9 @@ class Settings:
     # "yolo", or "none" to run ingest/SSE without a model (tests, dev).
     detector: str = field(default_factory=lambda: os.getenv("DETECTOR", "yolo"))
     zones_path: str = field(default_factory=_zones_path)
+    alerts_dir: str = field(
+        default_factory=lambda: os.getenv("ALERTS_DIR", str(SERVER_DIR / "data" / "alerts"))
+    )
+    alert_retention_days: int = field(
+        default_factory=lambda: int(os.getenv("ALERT_RETENTION_DAYS", "7"))
+    )

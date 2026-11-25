@@ -37,3 +37,17 @@ class DetectionsEvent(BaseModel):
     frame_ts: float
     latency_ms: float
     tracks: list[Track]
+
+
+class AlertEvent(BaseModel):
+    alert_id: str
+    camera_id: str
+    type: str
+    score: int = Field(ge=0, le=100)
+    reason: str
+    zone: str
+    track_ids: list[int]
+    # video time of the trigger frame, and wall clock
+    src_ts: float
+    ts: float
+    evidence_url: str
