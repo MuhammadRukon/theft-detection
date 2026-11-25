@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -18,7 +19,7 @@ async def events(request: Request, camera_id: str):
     async def stream():
         # Starlette cancels this generator on client disconnect, ending the loop.
         while True:
-            yield format_sse("stats", StatsEvent(**source.stats()))
+            yield format_sse("stats", StatsEvent(**asdict(source.stats())))
             await asyncio.sleep(1)
 
     return StreamingResponse(

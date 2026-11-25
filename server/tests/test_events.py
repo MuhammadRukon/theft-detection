@@ -1,5 +1,6 @@
 import asyncio
 import json
+from dataclasses import asdict
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +8,7 @@ from fastapi import HTTPException
 
 from app.api.events import events
 from app.events import StatsEvent, format_sse
+from app.sources.base import SourceStats
 
 STATS = dict(
     camera_id="cam1", fps=15.0, width=1280, height=720,
@@ -31,7 +33,7 @@ def test_route():
         camera_id = "cam1"
 
         def stats(self):
-            return STATS
+            return SourceStats(**STATS)
 
     req = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(source=Src())))
 
@@ -49,3 +51,7 @@ def test_route():
 
 def test_schema_pre_first_frame():
     assert StatsEvent(**{**STATS, "width": None, "height": None, "decode_ms": None}).width is None
+
+
+def test_source_stats_matches_event_schema():
+    assert asdict(SourceStats(**STATS)) == STATS == StatsEvent(**STATS).model_dump()
