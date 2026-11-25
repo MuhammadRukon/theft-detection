@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.alerts import AlertService, AlertStore
 from app.api.events import router as events_router
+from app.api.zones import router as zones_router
 from app.behavior import ZonesError, load_zones, make_engine
 from app.config import Settings
 from app.detection.yolo import YoloDetector
@@ -28,12 +29,14 @@ async def lifespan(app: FastAPI):
     source.start()
     store = app.state.alert_store = AlertStore(cfg.alerts_dir, cfg.alert_retention_days)
     store.purge_expired(time.time())
+    app.state.zones = []
     pipeline = None
     engine = None
     service = None
     try:
         zones = load_zones(cfg.zones_path)
-        engine = make_engine(cfg.camera_id, zones.get(cfg.camera_id, []))
+        app.state.zones = zones.get(cfg.camera_id, [])
+        engine = make_engine(cfg.camera_id, app.state.zones)
         service = AlertService(store, bus, zones)
     except ZonesError as e:
         log.error("behavior rules disabled: %s", e)
@@ -66,3 +69,4 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(events_router)
+app.include_router(zones_router)
