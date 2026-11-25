@@ -41,6 +41,7 @@ class Pipeline:
         bus: EventBus,
         camera_id: str,
         fps: float,
+        on_alert: Callable[[object], None] | None = None,
     ):
         self._source = source
         self._detector = detector
@@ -48,6 +49,9 @@ class Pipeline:
         self._bus = bus
         self._camera_id = camera_id
         self._period = 1 / fps
+        # Alert seam. Phases 2-3 run the behavior rules after the tracker in process() and call
+        # this per alert; eval.py collects them here. An alert exposes `type`, `zone`, `src_ts`.
+        self._on_alert = on_alert
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._fps = RollingFps()
@@ -94,13 +98,14 @@ class Pipeline:
             last = frame
             t0 = time.monotonic()
             try:
-                self._process(detector, frame)
+                self.process(detector, frame)
             except Exception:
                 log.exception("%s: inference error", self._camera_id)
             # a slow detector overruns the period: the wait is 0 and the next newest frame is taken
             self._stop.wait(max(t0 + self._period - time.monotonic(), 0))
 
-    def _process(self, detector: Detector, frame: Frame) -> None:
+    def process(self, detector: Detector, frame: Frame) -> None:
+        """Detect, track and publish one frame. Shared by the live loop and tools/eval.py."""
         t0 = time.perf_counter()
         detections = detector.detect(frame.image)
         infer_ms = (time.perf_counter() - t0) * 1000
@@ -118,6 +123,7 @@ class Pipeline:
             )
             for t in tracked
         ]
+        # Phase 2: rules(tracked, frame.src_ts) -> self._on_alert(alert) goes here.
         latency_ms = (time.time() - frame.ts) * 1000
         # Published even when empty, so the overlay clears.
         self._bus.publish(
