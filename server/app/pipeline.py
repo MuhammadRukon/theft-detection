@@ -5,13 +5,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
+
 from app.behavior import Alert, BehaviorEngine
 from app.detection.base import Detector
 from app.events import DetectionsEvent, EventBus, Track
 from app.metrics import RollingStats
 from app.sources import Frame, FrameSource
 from app.sources.fps import RollingFps
-from app.tracking import PersonTracker
+from app.tracking import PersonTracker, TrackedDetection
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ class Pipeline:
         fps: float,
         on_alert: Callable[[Alert], None] | None = None,
         engine: BehaviorEngine | None = None,
+        alert_sink: Callable[[Alert, np.ndarray, list[TrackedDetection]], object] | None = None,
     ):
         self._source = source
         self._detector = detector
@@ -54,6 +57,7 @@ class Pipeline:
         # Alert seam: process() runs the engine after the tracker and calls this per alert;
         # eval.py collects them here.
         self._on_alert = on_alert
+        self._alert_sink = alert_sink  # (alert, image, tracked): the live app's AlertService.handle
         self._engine = engine
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -131,6 +135,8 @@ class Pipeline:
                 for alert in self._engine.update(tracked, w, h, frame.src_ts, frame.ts):
                     if self._on_alert:
                         self._on_alert(alert)
+                    if self._alert_sink:
+                        self._alert_sink(alert, frame.image, tracked)
             except Exception:
                 log.exception("%s: behavior engine error", self._camera_id)
         latency_ms = (time.time() - frame.ts) * 1000

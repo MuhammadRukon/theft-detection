@@ -1,9 +1,11 @@
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.alerts import AlertService, AlertStore
 from app.api.events import router as events_router
 from app.behavior import ZonesError, load_zones, make_engine
 from app.config import Settings
@@ -24,10 +26,15 @@ async def lifespan(app: FastAPI):
     bus.bind(asyncio.get_running_loop())
     source = app.state.source = make_source(cfg.camera_id, cfg.source_url)
     source.start()
+    store = app.state.alert_store = AlertStore(cfg.alerts_dir, cfg.alert_retention_days)
+    store.purge_expired(time.time())
     pipeline = None
     engine = None
+    service = None
     try:
-        engine = make_engine(cfg.camera_id, load_zones(cfg.zones_path).get(cfg.camera_id, []))
+        zones = load_zones(cfg.zones_path)
+        engine = make_engine(cfg.camera_id, zones.get(cfg.camera_id, []))
+        service = AlertService(store, bus, zones)
     except ZonesError as e:
         log.error("behavior rules disabled: %s", e)
     if cfg.detector == "yolo":
@@ -38,8 +45,9 @@ async def lifespan(app: FastAPI):
             bus,
             cfg.camera_id,
             cfg.inference_fps,
-            on_alert=lambda a: log.info("ALERT %s", a),  # phase 3 swaps in the alert store
+            on_alert=lambda a: log.info("ALERT %s", a),
             engine=engine,
+            alert_sink=service.handle if service else None,
         )
         pipeline.start()
 
