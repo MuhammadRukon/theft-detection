@@ -2,7 +2,15 @@
 name = "theft-detection-server"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["fastapi", "uvicorn", "av", "numpy"]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "av",
+    "numpy",
+    "torch>=2.15.0",
+    "ultralytics>=8.4.218",
+    "supervision>=0.32.2",
+]
 
 [dependency-groups]
 dev = ["pytest", "ruff"]
@@ -19,3 +27,11 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
