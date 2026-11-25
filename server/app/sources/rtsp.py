@@ -30,7 +30,7 @@ class RtspFrameSource(FrameSource):
                         for frame in packet.decode():
                             self._emit(frame, (time.perf_counter() - t0) * 1000)
                     log.warning("%s: stream ended", self.camera_id)
-            except (av.AVError, OSError) as e:
+            except (av.FFmpegError, OSError) as e:
                 log.warning("%s: unavailable (%s), retry in %.0fs", self.camera_id, e, backoff)
             self._stop.wait(backoff)
             backoff = min(backoff * 2, 10.0)
