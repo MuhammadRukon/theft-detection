@@ -4,7 +4,7 @@ from app.sources.base import Frame, LatestSlot
 
 
 def frame(pts):
-    return Frame("cam1", 0.0, pts, 2, 2, np.zeros((2, 2, 3), np.uint8))
+    return Frame("cam1", 0.0, 0.0, pts, 2, 2, np.zeros((2, 2, 3), np.uint8))
 
 
 def test_empty():

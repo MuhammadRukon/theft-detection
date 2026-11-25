@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import av
@@ -15,7 +16,10 @@ log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class Frame:
     camera_id: str
-    ts: float  # wall clock at decode
+    ts: float  # wall clock at decode; used for latency only
+    # Source (video) time in seconds, 0 at the first frame, monotonic per source (a looping file
+    # keeps counting up). Rules use this, so a clip replays the same at any speed.
+    src_ts: float
     pts: int | None
     width: int
     height: int
@@ -67,6 +71,14 @@ class FrameSource(ABC):
         self._total = 0
         self._decode_ms_sum = 0.0
         self._size: tuple[int, int] | None = None
+        # Called on the reader thread for every frame, none skipped (replay/eval); may block.
+        self.on_frame: Callable[[Frame], None] | None = None
+        # Set when a one-shot source (stop_on_end) has finished or failed; `error` says why.
+        self.ended = threading.Event()
+        self.error: Exception | None = None
+        self._src_first: float | None = None
+        self._src_offset = 0.0
+        self._src_last: float | None = None
 
     def start(self) -> None:
         self._stop.clear()
@@ -106,11 +118,17 @@ class FrameSource(ABC):
 
     # True: a clean end of stream (e.g. file EOF) reopens at once instead of backing off.
     loop_on_end = False
+    # True: one-shot source. End of stream or any error sets `ended` and the reader stops.
+    stop_on_end = False
 
     def _run(self) -> None:
         backoff = 1.0
         while not self._stop.is_set():
             try:
+                # Source time restarts at each (re)open; continue after the last frame instead.
+                # shortcut: 1 ms gap at a reopen, fine for dev loops and reconnects.
+                self._src_offset = 0.0 if self._src_last is None else self._src_last + 0.001
+                self._src_first = None
                 with self._open() as container:
                     backoff = 1.0
                     for packet in container.demux(video=0):
@@ -123,24 +141,52 @@ class FrameSource(ABC):
                         for frame in frames:
                             t1 = time.perf_counter()
                             image = frame.to_ndarray(format="bgr24")
-                            self._publish(
-                                frame.pts, image, share + (time.perf_counter() - t1) * 1000
-                            )
+                            self._publish(frame, image, share + (time.perf_counter() - t1) * 1000)
                             if self._pace(frame):
                                 return
                     if self.loop_on_end:
                         continue
+                    if self.stop_on_end:
+                        self.ended.set()
+                        return
                     log.warning("%s: stream ended", self.camera_id)
             except (av.FFmpegError, OSError) as e:
+                if self._fail(e):
+                    return
                 log.warning("%s: unavailable (%s), retry in %.0fs", self.camera_id, e, backoff)
-            except Exception:
+            except Exception as e:
+                if self._fail(e):
+                    return
                 log.exception("%s: reader error, retry in %.0fs", self.camera_id, backoff)
             self._stop.wait(backoff)
             backoff = min(backoff * 2, 10.0)
 
-    def _publish(self, pts, image: np.ndarray, decode_ms: float) -> None:
+    def _fail(self, e: Exception) -> bool:
+        """One-shot sources record the error and stop; others retry."""
+        if not self.stop_on_end:
+            return False
+        self.error = e
+        log.error("%s: source failed (%s)", self.camera_id, e)
+        self.ended.set()
+        return True
+
+    def _source_ts(self, frame) -> float:
+        # frame.time is pts * time_base. Without pts (some RTSP streams) use elapsed monotonic
+        # time since the first frame, which is wall-clock-like but never goes backwards.
+        t = frame.time if frame.pts is not None else time.monotonic()
+        if self._src_first is None:
+            self._src_first = t
+        self._src_last = self._src_offset + t - self._src_first
+        return self._src_last
+
+    def _publish(self, av_frame, image: np.ndarray, decode_ms: float) -> None:
         h, w = image.shape[:2]
-        self._slot.put(Frame(self.camera_id, time.time(), pts, w, h, image))
+        frame = Frame(
+            self.camera_id, time.time(), self._source_ts(av_frame), av_frame.pts, w, h, image
+        )
+        self._slot.put(frame)
+        if self.on_frame:
+            self.on_frame(frame)
         self._fps.tick()
         with self._lock:
             self._total += 1

@@ -25,7 +25,7 @@ class StubSource:
     def _run(self):
         while not self._stop.wait(self.interval):
             self.produced += 1
-            self._frame = Frame("cam1", time.time(), None, W, H, np.zeros((H, W, 3), np.uint8))
+            self._frame = Frame("cam1", time.time(), 0.0, None, W, H, np.zeros((H, W, 3), np.uint8))
 
     def latest(self):
         return self._frame
@@ -184,7 +184,7 @@ def test_status_transitions_and_failed_load():
 def test_same_frame_not_reprocessed():
     det = FakeDetector()
     src, bus, p = make(det, interval=1000)  # StubSource never produces a frame
-    src._frame = Frame("cam1", time.time(), None, W, H, np.zeros((H, W, 3), np.uint8))
+    src._frame = Frame("cam1", time.time(), 0.0, None, W, H, np.zeros((H, W, 3), np.uint8))
     p.start()
     time.sleep(0.3)
     p.stop()
