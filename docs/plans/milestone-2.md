@@ -57,7 +57,7 @@ Weapons, other classes, behavior rules, alerts and evidence store, ONNX export, 
 
 ## Execution Progress
 
-**Status: in progress**
+**Status: COMPLETE, ready for PR**
 
 _Last updated: 2026-11-26 — Branch: feature/person-detection (stacked on feature/webcam-fps-ingest) — Workspace: main working directory_
 
@@ -65,8 +65,8 @@ Final commit list: —
 
 | Phase | Status | Commit | Review | Notes |
 | --- | --- | --- | --- | --- |
-| 1. Event bus and SSE | pending | — | deferred | — |
-| 2. Detector | pending | — | deferred | ask user before model and torch downloads |
-| 3. Processing loop and tracker | pending | — | deferred | — |
-| 4. Dashboard overlay | pending | — | deferred | — |
-| 5. E2E check, docs, cross-validation | pending | — | — | — |
+| 1. Event bus and SSE | done | `169d6e2` | deferred | pytest/ruff pass (events tests). NOT run: real uvicorn/browser SSE session. Bus is per process, one queue per SSE connection |
+| 2. Detector | done | `e6b2598` | deferred | 28 pytest pass; real YoloDetector 29.6 ms mean (p95 31.7) at 1280x720 blank frame, 4 threads (about 33 FPS capacity). NOT run: real-person detection, concurrent load, missing-model-file case. ultralytics telemetry blocked via YOLO_OFFLINE=1; .venv now 1.2 GB; opencv, torchvision come in as deps |
+| 3. Processing loop and tracker | done | `1294d0e` tracker, see git log for pipeline | deferred | 46 pytest pass. Deviation: supervision 0.32.2 has no ByteTrack; user approved Roboflow `trackers` 2.7.0 (Apache-2.0), thresholds set to detect_conf 0.4, tracks need 2 matches before an ID. Synthetic e2e through real YoloDetector: ingest 14.98 fps, inference 4.75 fps, p50 28 ms, p95 34 ms, e2e 61 ms mean. NOT run: real people/webcam, DETECTOR=none e2e, shutdown during model load. Limits: e2e_latency_ms is a 100-sample mean; model-load failure not visible to client |
+| 4. Dashboard overlay | done | `f2a2c57` | deferred | build + lint clean. NOT run: any real detections, visual alignment on live video, mock-event draw test. containRect checked in console. Single shared EventSource (useCameraEvents) replaced useStats |
+| 5. E2E check, docs, cross-validation | done | `b53c4c4`, `928f0b1`, `00f7880`, `4518f6a` | 0 Must, S1-S7 fixed | Real webcam in Chrome (2026-11-26). Before threshold split: ingest 14-14.7 fps, inference 4.9 fps, p50 30.5 / p95 32-35 ms, server latency (decode to publish) 70-80 ms, tracks in 11/24 events, ID switch 4 to 6. After split (detect 0.2, track 0.4): ingest 14.9 fps at 960x540, inference 4.8 fps, p50 30.3 / p95 33.2 ms, latency 68 ms, tracks in 68/98 events (69%), 3 distinct IDs with 2 changes in 20 s, Detector status running. Capture-to-browser latency NOT measured. Still intermittent in dim close-up; ID switches not eliminated. NOT done: S8 (tracker timestamp and reset after outage), Nice-to-have items, multi-person test, good-lighting test |
