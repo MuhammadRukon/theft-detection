@@ -16,8 +16,13 @@ rtspTransports: [tcp]
 
 webrtcAddress: 127.0.0.1:8889
 webrtcAllowOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"]
-webrtcLocalUDPAddress: 127.0.0.1:8189
-webrtcIPsFromInterfaces: false
+# ICE: Chrome only gathers its LAN-interface host candidates, so advertising
+# 127.0.0.1 alone never connects. The UDP media port (8189) is therefore now
+# reachable on the LAN, but a session can only be created through the
+# localhost-only HTTP signaling endpoint above (WHIP/WHEP), so LAN peers
+# cannot start one. Add auth (authMethods) before exposing any of this.
+webrtcLocalUDPAddress: ":8189"
+webrtcIPsFromInterfaces: true
 webrtcAdditionalHosts: [127.0.0.1]
 
 paths:
