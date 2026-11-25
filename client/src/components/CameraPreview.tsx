@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import { startWhip } from "../lib/whip";
 
 export default function CameraPreview() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const stopWhipRef = useRef<(() => Promise<void>) | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   async function startCamera() {
     try {
       setError(null);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } },
         audio: false,
       });
 
@@ -23,12 +26,25 @@ export default function CameraPreview() {
       }
 
       setIsStreaming(true);
+
+      try {
+        stopWhipRef.current = await startWhip(stream);
+        setIsPublishing(true);
+      } catch (err) {
+        setError(
+          `Publish failed (is MediaMTX running?): ${err instanceof Error ? err.message : err}`,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to access camera");
     }
   }
 
   function stopCamera() {
+    void stopWhipRef.current?.();
+    stopWhipRef.current = null;
+    setIsPublishing(false);
+
     streamRef.current?.getTracks().forEach((track) => track.stop());
 
     streamRef.current = null;
@@ -42,6 +58,7 @@ export default function CameraPreview() {
 
   useEffect(() => {
     return () => {
+      void stopWhipRef.current?.();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
@@ -79,7 +96,8 @@ export default function CameraPreview() {
       {error && <p className="mt-3 text-red-500">{error}</p>}
 
       <p className="mt-3 text-sm text-gray-500">
-        Status: {isStreaming ? "Streaming" : "Stopped"}
+        Status: {isStreaming ? "Streaming" : "Stopped"} | Publish:{" "}
+        {isPublishing ? "Live" : "Off"}
       </p>
     </div>
   );
