@@ -10,6 +10,7 @@ dependencies = [
     "torch>=2.15.0",
     "ultralytics>=8.4.218",
     "supervision>=0.32.2",
+    "trackers>=2.7.0",
 ]
 
 [dependency-groups]
