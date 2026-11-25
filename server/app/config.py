@@ -5,6 +5,14 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parent.parent
 
 
+def _zones_path() -> str:
+    # ZONES_PATH wins; else the real file if present, else the committed sample.
+    if env := os.getenv("ZONES_PATH"):
+        return env
+    real = SERVER_DIR / "config" / "zones.json"
+    return str(real if real.is_file() else SERVER_DIR / "config" / "zones.sample.json")
+
+
 @dataclass(frozen=True)
 class Settings:
     camera_id: str = field(default_factory=lambda: os.getenv("CAMERA_ID", "cam1"))
@@ -22,3 +30,4 @@ class Settings:
     inference_fps: float = field(default_factory=lambda: float(os.getenv("INFERENCE_FPS", "5.0")))
     # "yolo", or "none" to run ingest/SSE without a model (tests, dev).
     detector: str = field(default_factory=lambda: os.getenv("DETECTOR", "yolo"))
+    zones_path: str = field(default_factory=_zones_path)
