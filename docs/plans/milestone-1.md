@@ -42,7 +42,7 @@ Detection, tracking, behavior rules, alerts, evidence store, auth, phone camera,
 
 ## Execution Progress
 
-**Status: COMPLETE except real-webcam check, ready for PR**
+**Status: COMPLETE, ready for PR**
 
 _Last updated: 2026-11-26 — Branch: feature/webcam-fps-ingest — Workspace: main working directory_
 
@@ -64,4 +64,4 @@ Final commit list: `e8d3d00` (init), `9f80481` (baseline)
 
 ## Final Status
 
-All 4 steps implemented on `feature/webcam-fps-ingest` (not pushed). Verified: ruff, 14 pytest, client build, lint; synthetic 720p@15 H.264 publisher -> MediaMTX -> Python measured about 15 fps, shown via SSE in the dashboard (direct and Vite proxy). NOT verified: a real webcam through browser WHIP, H.264 negotiation, WHEP playback, Stop/DELETE, race fixes in a browser, SSE reconnect. Next: run `.\dev.ps1`, open http://localhost:5173, Start Camera, Connect, confirm video plus FPS in the panel, then open a PR into `dev` (needs explicit push approval).
+All 4 steps implemented on `feature/webcam-fps-ingest` (not pushed). Verified: ruff, 14 pytest, client build, lint; synthetic 720p@15 H.264 publisher -> MediaMTX -> Python measured about 15 fps, shown via SSE in the dashboard (direct and Vite proxy). Real webcam verified in Chrome (2026-11-26): WHIP publish (H.264) -> MediaMTX -> WHEP playback OK; Python measured about 13-14 fps at 960x540 (Chrome delivered 540p, not the requested 720p) with decode about 1.8 ms; dashboard panel showed FPS, resolution and decode. Required fix: loopback-only ICE never connected, so mediamtx.yml now advertises LAN interface candidates and listens on UDP :8189 on all interfaces (signaling HTTP and RTSP stay on 127.0.0.1). NOT verified: Stop/DELETE, race fixes by hand, SSE reconnect, mid-stream drop. Next: run `.\dev.ps1`, open http://localhost:5173, Start Camera, Connect, confirm video plus FPS in the panel, then open a PR into `dev` (needs explicit push approval).
