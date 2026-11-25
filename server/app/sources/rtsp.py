@@ -32,5 +32,7 @@ class RtspFrameSource(FrameSource):
                     log.warning("%s: stream ended", self.camera_id)
             except (av.FFmpegError, OSError) as e:
                 log.warning("%s: unavailable (%s), retry in %.0fs", self.camera_id, e, backoff)
+            except Exception:
+                log.exception("%s: reader error, retry in %.0fs", self.camera_id, backoff)
             self._stop.wait(backoff)
             backoff = min(backoff * 2, 10.0)
