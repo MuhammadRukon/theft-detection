@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { containRect } from "../lib/videoRect";
-import type { DetectionsEvent } from "../types/events";
+import type { DetectionsEvent, Zone } from "../types/events";
 
 const STALE_MS = 1000;
 
@@ -11,15 +11,17 @@ const color = (id: number) => `hsl(${(id * 137.5) % 360} 90% 55%)`;
 export default function DetectionOverlay({
   videoRef,
   detections,
+  zones,
   active,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   detections: DetectionsEvent | null;
+  zones: Zone[];
   active: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Latest data lives in a ref so the observers below are set up once, not per 5 Hz event.
-  const latest = useRef({ detections, active, at: 0 });
+  const latest = useRef({ detections, zones, active, at: 0 });
   const drawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -40,13 +42,34 @@ export default function DetectionOverlay({
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      const { detections: d, active: on, at } = latest.current;
-      if (!on || !d || performance.now() - at >= STALE_MS) return;
+      const { detections: d, zones: zs, active: on, at } = latest.current;
+      if (!on) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const r = containRect(video.videoWidth, video.videoHeight, cw, ch);
       ctx.font = "12px sans-serif";
       ctx.textBaseline = "top";
       ctx.lineWidth = 2;
+      // Zones are static config, so they stay up when detections go stale.
+      for (const z of zs) {
+        ctx.beginPath();
+        z.polygon.forEach(([px, py], i) => {
+          const x = r.x + px * r.w;
+          const y = r.y + py * r.h;
+          if (i) ctx.lineTo(x, y);
+          else ctx.moveTo(x, y);
+        });
+        ctx.closePath();
+        ctx.strokeStyle = ctx.fillStyle = "#facc15";
+        ctx.globalAlpha = 0.2;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const [lx, ly] = z.polygon[0];
+        ctx.fillText(`${z.name} (${z.dwell_s} s)`, r.x + lx * r.w + 4, r.y + ly * r.h + 4);
+      }
+      if (!d || performance.now() - at >= STALE_MS) return;
       for (const t of d.tracks) {
         const x = r.x + t.x1 * r.w;
         const y = r.y + t.y1 * r.h;
@@ -74,11 +97,11 @@ export default function DetectionOverlay({
   useEffect(() => {
     // Stamp only on new detections so toggling `active` never revives old boxes.
     const at = latest.current.detections === detections ? latest.current.at : performance.now();
-    latest.current = { detections, active, at };
+    latest.current = { detections, zones, active, at };
     drawRef.current();
     const timer = window.setTimeout(() => drawRef.current(), STALE_MS);
     return () => window.clearTimeout(timer);
-  }, [detections, active]);
+  }, [detections, zones, active]);
 
   return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />;
 }

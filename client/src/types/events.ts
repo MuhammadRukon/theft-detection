@@ -33,3 +33,23 @@ export interface DetectionsEvent {
   latency_ms: number;
   tracks: Track[];
 }
+
+export interface AlertEvent {
+  alert_id: string; // hex ms timestamp, so string order is time order
+  camera_id: string;
+  type: string;
+  score: number; // 0-100
+  reason: string;
+  zone: string;
+  track_ids: number[];
+  src_ts: number; // video time of the trigger frame
+  ts: number; // wall clock, epoch seconds
+  evidence_url: string; // /api/alerts/{id}/snapshot.jpg
+}
+
+// From GET /api/zones; polygon points normalized 0-1.
+export interface Zone {
+  name: string;
+  polygon: [number, number][];
+  dwell_s: number;
+}
