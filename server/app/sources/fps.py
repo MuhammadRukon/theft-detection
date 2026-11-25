@@ -15,12 +15,16 @@ class RollingFps:
     def tick(self) -> None:
         with self._lock:
             self._ticks.append(self._clock())
+            self._prune()
+
+    def _prune(self) -> None:
+        cutoff = self._clock() - self._window
+        while self._ticks and self._ticks[0] < cutoff:
+            self._ticks.popleft()
 
     def fps(self) -> float:
         with self._lock:
-            cutoff = self._clock() - self._window
-            while self._ticks and self._ticks[0] < cutoff:
-                self._ticks.popleft()
+            self._prune()
             if len(self._ticks) < 2:
                 return 0.0
             return (len(self._ticks) - 1) / (self._ticks[-1] - self._ticks[0])

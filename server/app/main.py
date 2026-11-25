@@ -23,12 +23,12 @@ async def lifespan(app: FastAPI):
     bus.bind(asyncio.get_running_loop())
     source = app.state.source = make_source(cfg.camera_id, cfg.source_url)
     source.start()
-    pipeline = app.state.pipeline = None
+    pipeline = None
     if cfg.detector == "yolo":
         pipeline = app.state.pipeline = Pipeline(
             source,
             lambda: YoloDetector(cfg),
-            PersonTracker(cfg.inference_fps, cfg.detect_conf),
+            PersonTracker(cfg.inference_fps, cfg.track_conf),
             bus,
             cfg.camera_id,
             cfg.inference_fps,

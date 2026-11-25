@@ -158,3 +158,35 @@ def test_stats_none_then_populated():
         and s.inference_ms_p95 >= s.inference_ms_p50
     )
     assert s.e2e_latency_ms >= 0
+
+
+def test_status_transitions_and_failed_load():
+    def boom():
+        raise RuntimeError("no model")
+
+    src, bus, p = make(boom)
+    assert p.stats().status == "loading"
+    p.start()
+    assert wait_for(lambda: p.stats().status == "failed")
+    p.stop()
+    src.close()
+
+    src, bus, p = make(FakeDetector())
+    assert p.stats().status == "loading"
+    p.start()
+    assert wait_for(lambda: p.stats().status == "running")
+    assert wait_for(lambda: p.stats().inference_fps is not None)
+    assert p.stats().status == "running"
+    p.stop()
+    src.close()
+
+
+def test_same_frame_not_reprocessed():
+    det = FakeDetector()
+    src, bus, p = make(det, interval=1000)  # StubSource never produces a frame
+    src._frame = Frame("cam1", time.time(), None, W, H, np.zeros((H, W, 3), np.uint8))
+    p.start()
+    time.sleep(0.3)
+    p.stop()
+    src.close()
+    assert det.calls == 1

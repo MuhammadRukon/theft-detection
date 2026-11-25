@@ -3,6 +3,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from app.detection.base import Detector
 from app.events import DetectionsEvent, EventBus, Track
@@ -16,11 +17,13 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PipelineStats:
-    # All None until the first inference. e2e_latency_ms is the mean of the last 100 results.
+    # Metrics are None until the first inference. e2e_latency_ms is the mean of the last 30
+    # results, decode-to-publish (source frame.ts to bus.publish), not camera-to-browser.
     inference_fps: float | None = None
     inference_ms_p50: float | None = None
     inference_ms_p95: float | None = None
     e2e_latency_ms: float | None = None
+    status: Literal["loading", "running", "failed"] = "loading"
 
 
 class Pipeline:
@@ -49,8 +52,9 @@ class Pipeline:
         self._thread: threading.Thread | None = None
         self._fps = RollingFps()
         self._lock = threading.Lock()
-        self._infer_ms = RollingStats()
-        self._e2e_ms = RollingStats()
+        self._infer_ms = RollingStats(30)
+        self._e2e_ms = RollingStats(30)
+        self._status: Literal["loading", "running", "failed"] = "loading"
 
     def start(self) -> None:
         self._stop.clear()
@@ -68,22 +72,26 @@ class Pipeline:
         with self._lock:
             p50, p95, e2e = self._infer_ms.p50(), self._infer_ms.p95(), self._e2e_ms.mean()
         if p50 is None:
-            return PipelineStats()
-        return PipelineStats(round(self._fps.fps(), 2), round(p50, 2), round(p95, 2), round(e2e, 2))
+            return PipelineStats(status=self._status)
+        return PipelineStats(
+            round(self._fps.fps(), 2), round(p50, 2), round(p95, 2), round(e2e, 2), self._status
+        )
 
     def _run(self) -> None:
         try:
             detector = self._detector if isinstance(self._detector, Detector) else self._detector()
         except Exception:
             log.exception("%s: detector failed to load, detection disabled", self._camera_id)
+            self._status = "failed"
             return
-        last_ts = None
+        self._status = "running"
+        last = None
         while not self._stop.is_set():
             frame = self._source.latest()
-            if frame is None or frame.ts == last_ts:
+            if frame is None or frame is last:
                 self._stop.wait(0.01)
                 continue
-            last_ts = frame.ts
+            last = frame
             t0 = time.monotonic()
             try:
                 self._process(detector, frame)

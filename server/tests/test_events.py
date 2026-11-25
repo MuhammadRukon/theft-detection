@@ -16,8 +16,9 @@ STATS = dict(
     decode_ms=1.5, frames_total=30, frames_dropped=2,
 )  # fmt: skip
 PIPELINE_NONE = dict(
-    inference_fps=None, inference_ms_p50=None, inference_ms_p95=None, e2e_latency_ms=None
-)
+    inference_fps=None, inference_ms_p50=None, inference_ms_p95=None, e2e_latency_ms=None,
+    pipeline_status=None,
+)  # fmt: skip
 
 
 def test_format_sse():
@@ -152,7 +153,7 @@ def test_route_merges_pipeline_stats():
 
     class Pipe:
         def stats(self):
-            return PipelineStats(5.0, 30.0, 40.0, 120.0)
+            return PipelineStats(5.0, 30.0, 40.0, 120.0, "running")
 
     state = SimpleNamespace(source=Src(), bus=EventBus(), pipeline=Pipe())
     req = SimpleNamespace(app=SimpleNamespace(state=state))
@@ -167,3 +168,4 @@ def test_route_merges_pipeline_stats():
     assert (d["fps"], d["inference_fps"], d["inference_ms_p95"], d["e2e_latency_ms"]) == (
         15.0, 5.0, 40.0, 120.0,
     )  # fmt: skip
+    assert d["pipeline_status"] == "running"

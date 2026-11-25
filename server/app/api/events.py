@@ -25,6 +25,8 @@ async def events(request: Request, camera_id: str):
             while True:
                 if time.monotonic() >= next_stats:
                     pipe = asdict(pipeline.stats()) if pipeline else {}
+                    if pipe:
+                        pipe["pipeline_status"] = pipe.pop("status")
                     yield format_sse("stats", StatsEvent(**asdict(source.stats()), **pipe))
                     next_stats = time.monotonic() + 1
                 try:

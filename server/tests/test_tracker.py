@@ -45,3 +45,11 @@ def test_track_id_is_plain_int():
     t = PersonTracker(5.0)
     out = run(t, [[box(100)]] * 3)[-1]
     assert type(out[0].track_id) is int
+
+
+def test_low_conf_detection_keeps_confirmed_track():
+    # ByteTrack's second stage matches weak boxes (conf below min_conf) to existing tracks
+    t = PersonTracker(5.0, 0.4)
+    tid = run(t, [[box(100)]] * 4)[-1][0].track_id
+    out = t.update([box(100, conf=0.3)])
+    assert [d.track_id for d in out] == [tid]

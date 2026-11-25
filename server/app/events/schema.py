@@ -15,6 +15,8 @@ class StatsEvent(BaseModel):
     inference_ms_p50: float | None = None
     inference_ms_p95: float | None = None
     e2e_latency_ms: float | None = None
+    # "loading" | "running" | "failed"; None when there is no pipeline (DETECTOR=none)
+    pipeline_status: str | None = None
 
 
 class Track(BaseModel):

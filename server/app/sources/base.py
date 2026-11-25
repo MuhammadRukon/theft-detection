@@ -30,6 +30,8 @@ class SourceStats:
     height: int | None
     decode_ms: float | None
     frames_total: int
+    # frames overwritten before the consumer read them: ~ingest fps minus inference fps per second
+    # (15 fps ingest, 5 fps consumer: about 10/s)
     frames_dropped: int
 
 
