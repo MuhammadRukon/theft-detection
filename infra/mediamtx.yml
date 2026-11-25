@@ -1,0 +1,24 @@
+# Local dev hub. No auth: localhost-only POC (known debt, add authMethods before exposing).
+logLevel: info
+
+rtmp: false
+hls: false
+srt: false
+api: false
+metrics: false
+pprof: false
+playback: false
+moq: false
+
+# Python reader uses rtsp_transport=tcp, so UDP/multicast RTSP stays off.
+rtspAddress: 127.0.0.1:8554
+rtspTransports: [tcp]
+
+webrtcAddress: 127.0.0.1:8889
+webrtcAllowOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"]
+webrtcLocalUDPAddress: 127.0.0.1:8189
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [127.0.0.1]
+
+paths:
+  cam1:
