@@ -35,7 +35,6 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
       <ul className="flex max-w-2xl flex-col gap-2">
         {alerts.map((a) => {
           const age = Math.max(0, now / 1000 - a.ts);
-          const label = a.zone === null ? a.type : `${a.type} in ${a.zone}`;
           return (
             <li
               key={a.alert_id}
@@ -43,16 +42,11 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
                 age < NEW_S ? "border-amber-400 bg-amber-100" : "border-gray-200"
               }`}
             >
-              <button
-                type="button"
-                onClick={() => show(a.evidence_url)}
-                aria-label={label}
-                className="shrink-0"
-              >
+              <button type="button" onClick={() => show(a.evidence_url)} className="shrink-0">
                 <img
                   src={a.evidence_url}
                   loading="lazy"
-                  alt={label}
+                  alt={a.zone === null ? a.type : `${a.type} in ${a.zone}`}
                   className="h-16 w-28 rounded bg-black object-cover"
                 />
               </button>
