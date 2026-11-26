@@ -35,3 +35,9 @@ Each phase is its own session and branch. Phases 2 and 3 run in parallel after p
 ## Out of scope
 
 Object detection and association (Milestone 4), "left alone" objects, rush/loitering-count rules beyond dwell, zone editor, acknowledge/resolve, risk scoring beyond a fixed per-rule score, ID-switch repair, custom model training, ONNX/GPU, multi-camera registry, auth, database.
+
+## Status (2026-11-26)
+
+Phases 1-4, integration and review fixes are in; 145 server tests pass. Live webcam run: zone, boxes and dwell alerts worked.
+
+**NOT done:** the replay eval on recorded clips (no clips exist yet), so the Done-when pass rules are unproven. Also not tried live: stepping out under 2 s, stream reconnect, SSE resume. Merged to main at the user's request; run `python -m tools.eval` once clips are recorded.
