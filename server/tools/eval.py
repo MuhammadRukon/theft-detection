@@ -5,13 +5,14 @@
 Each `X.mp4` needs a label file next to it: `X.json`, else `clip.json` in the same folder:
     {"expected_alerts": [{"type": "dwell", "zone": "door", "at_s": 10}], "notes": "..."}
 `at_s` is the earliest video second the alert may fire.
-Omit `zone` (or use null) to expect an alert that has no zone. An empty list is a "normal" clip.
+`zone` names a zone that has `dwell_s`. An empty list is a "normal" clip.
 Pass rules (milestone 3, decision 8): each expected alert fires within [at_s, at_s + 3];
 no alert that matches nothing; at most one repeat per expected alert. Exit 1 on any failure.
 """
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +25,11 @@ from app.sources import FileFrameSource
 from app.tracking import PersonTracker
 
 WINDOW_S = 3.0
+KNOWN_TYPES = ("dwell",)  # a tuple, so any JSON value can be tested for membership
+
+
+class LabelError(ValueError):
+    """A clip label is missing or invalid."""
 
 
 @dataclass
@@ -43,11 +49,35 @@ class ClipResult:
         return self.error is None and self.missed == 0 and self.false_alarms == 0
 
 
-def load_expected(mp4: Path) -> list[dict]:
+def load_expected(mp4: Path, zones: list[Zone]) -> list[dict]:
     label = mp4.with_suffix(".json")
     if not label.is_file():
         label = mp4.with_name("clip.json")
-    return json.loads(label.read_text())["expected_alerts"]
+    data = json.loads(label.read_text())
+    if not isinstance(data, dict) or "expected_alerts" not in data:
+        raise LabelError("expected_alerts: missing (the label must be an object with a list)")
+    expected = data["expected_alerts"]
+    if not isinstance(expected, list):
+        raise LabelError(f"expected_alerts: {expected!r} is not a list")
+    dwell_zones = [z.name for z in zones if z.dwell_s is not None]
+    for number, entry in enumerate(expected, 1):
+        where = f"expected_alerts[{number}]"
+        if not isinstance(entry, dict):
+            raise LabelError(f"{where}: {entry!r} is not an object")
+        kind = entry.get("type")
+        if kind not in KNOWN_TYPES:
+            known = ", ".join(KNOWN_TYPES)
+            raise LabelError(f"{where}.type: {kind!r} is not a known type (known: {known})")
+        at_s = entry.get("at_s")
+        number_like = isinstance(at_s, (int, float)) and not isinstance(at_s, bool)
+        if not (number_like and math.isfinite(at_s) and at_s >= 0):
+            raise LabelError(f"{where}.at_s: {at_s!r} is not a number >= 0")
+        zone = entry.get("zone")
+        # every known type is a dwell alert: it needs a zone the dwell rule actually watches
+        if zone not in dwell_zones:
+            known = ", ".join(dwell_zones)
+            raise LabelError(f"{where}.zone: {zone!r} is not a zone with dwell_s (known: {known})")
+    return expected
 
 
 def score(name: str, expected: list[dict], alerts: list) -> ClipResult:
@@ -179,8 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     for mp4 in clips:
         name = mp4.relative_to(args.clips).as_posix()
         try:
+            expected = load_expected(mp4, zones)
             alerts, events = run_clip(mp4, detector, cfg, zones)
-            r = score(name, load_expected(mp4), alerts)
+            r = score(name, expected, alerts)
             r.id_switches = count_id_switches(events)
         except Exception as e:  # an unrunnable or unlabelled clip fails, it does not crash the run
             r = ClipResult(name, error=f"{type(e).__name__}: {e}")

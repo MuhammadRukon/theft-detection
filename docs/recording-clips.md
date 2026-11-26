@@ -94,7 +94,7 @@ A normal clip has an empty list:
 ```
 
 - `type` is `dwell` for now.
-- `zone` is the zone name in your zones file. Omit it (or use `null`) only for an alert that has no zone; `dwell` alerts always have one.
+- `zone` is the name, case-sensitive, of a zone in your zones file that has `dwell_s`. The eval fails a clip whose label names any other zone.
 - `at_s` is video time in seconds from the start of the clip. It is the earliest second the alert may fire: the moment the person has been inside the zone for `dwell_s`. Example: they step into the zone at 4 s and `dwell_s` is 10, so `at_s` is 14.
 - A clip passes when each expected alert fires between `at_s` and `at_s + 3` seconds, and no other alert fires, except that at most one repeat per expected alert is tolerated.
 
