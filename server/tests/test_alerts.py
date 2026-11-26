@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 
 import cv2
@@ -216,3 +217,24 @@ def test_rest_without_store():
     c = client()
     assert c.get("/api/alerts").json() == []
     assert c.get("/api/alerts/a1/snapshot.jpg").status_code == 404
+
+
+def test_store_removes_leftover_tmp_folders_at_startup(tmp_path):
+    (tmp_path / ".tmp-abc").mkdir()
+    (tmp_path / ".tmp-abc" / "snapshot.jpg").write_bytes(JPEG)
+    AlertStore(tmp_path, 7)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_missing_snapshot_file_is_404(tmp_path):
+    s = AlertStore(tmp_path, 7)
+    s.save(mk("a1"), JPEG)
+    (tmp_path / "a1" / "snapshot.jpg").unlink()
+    assert client(s).get("/api/alerts/a1/snapshot.jpg").status_code == 404
+
+
+def test_service_logs_trigger_to_publish_time(tmp_path, caplog):
+    svc = AlertService(AlertStore(tmp_path, 7), EventBus(), {})
+    with caplog.at_level("INFO", logger="alerts"):
+        svc.handle(fake_alert(ts=time.time()), np.zeros((20, 20, 3), np.uint8), [])
+    assert len([m for m in caplog.messages if "ms after trigger" in m]) == 1

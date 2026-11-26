@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.alerts import valid_alert_id
 from app.events import AlertEvent, DetectionsEvent, StatsEvent, format_sse
@@ -73,4 +73,8 @@ def alert_snapshot(request: Request, alert_id: str):
     path = store.snapshot_path(alert_id) if store and valid_alert_id(alert_id) else None
     if path is None:
         raise HTTPException(404, "unknown alert")
-    return FileResponse(path, media_type="image/jpeg")
+    try:  # read here: the purge may delete the file at any moment
+        jpeg = path.read_bytes()
+    except OSError:
+        raise HTTPException(404, "snapshot missing") from None
+    return Response(jpeg, media_type="image/jpeg")

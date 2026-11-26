@@ -28,6 +28,9 @@ class AlertStore:
         self._alerts: dict[str, AlertEvent] = {}
         self.root.mkdir(parents=True, exist_ok=True)
         for d in self.root.iterdir():
+            if d.name.startswith(".tmp-"):  # left by a save that was killed mid-write
+                shutil.rmtree(d, ignore_errors=True)
+                continue
             if not d.is_dir() or d.name.startswith("."):
                 continue
             try:
