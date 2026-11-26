@@ -135,12 +135,60 @@ def test_grace_keeps_timer_and_longer_gap_resets():
     assert [a.src_ts for a in got] == [16.5]
 
 
-def test_leaving_zone_resets():
+def alerts_at(e, *spans):
+    """Alert times for one person over (from_s, to_s, where) spans, one frame per second."""
+    people = {"in": [person(1)], "out": [person(1, cx=95)], "unseen": []}
+    return [
+        a.src_ts
+        for start, end, where in spans
+        for t in range(start, end)
+        for a in step(e, float(t), *people[where])
+    ]
+
+
+def test_stepping_out_for_1s_keeps_timer():
+    # frames at 5 fps: inside, outside from 5.0 to 5.8, back at 6.0
     e = engine(10)
-    step(e, 0.0, person(1))
-    step(e, 5.0, person(1, cx=95))  # seen, outside the zone
-    got = [(t, a) for t in range(6, 17) for a in step(e, float(t), person(1))]
-    assert [t for t, _ in got] == [16]  # 10 s counted from 6, not from 0
+    got = [
+        a.src_ts
+        for i in range(0, 56)
+        for a in step(e, i / 5, person(1, cx=95 if 25 <= i < 30 else 50))
+    ]
+    assert got == [10.0]
+
+
+@pytest.mark.parametrize("away", ["out", "unseen"])
+def test_one_frame_away_keeps_timer(away):
+    assert alerts_at(engine(10), (0, 5, "in"), (5, 6, away), (6, 15, "in")) == [10]
+
+
+@pytest.mark.parametrize("away", ["out", "unseen"])
+def test_away_for_2_5s_resets_timer(away):
+    e = engine(10)
+    alerts_at(e, (0, 5, "in"))  # last inside at 4
+    other = [person(1, cx=95)] if away == "out" else []
+    assert step(e, 5.0, *other) == [] and step(e, 6.5, *other) == []
+    assert alerts_at(e, (7, 25, "in")) == [17]
+
+
+def test_dwell_reached_while_outside_fires_on_return():
+    assert alerts_at(engine(10), (0, 10, "in"), (10, 11, "out"), (11, 15, "in")) == [11]
+
+
+def test_one_alert_per_visit_however_long():
+    assert alerts_at(engine(10), (0, 101, "in")) == [10]
+
+
+@pytest.mark.parametrize("away", ["out", "unseen"])
+def test_new_visit_after_leaving_gets_second_alert(away):
+    got = alerts_at(engine(10), (0, 15, "in"), (15, 18, away), (18, 40, "in"))
+    assert got == [10, 28]
+
+
+@pytest.mark.parametrize("away", ["out", "unseen"])
+def test_brief_absence_after_firing_does_not_realert(away):
+    # last inside at 14, back at 16: exactly the 2 s grace, still the same visit
+    assert alerts_at(engine(10), (0, 15, "in"), (15, 16, away), (16, 60, "in")) == [10]
 
 
 def test_bottom_centre_decides_not_box_centre():
@@ -148,12 +196,6 @@ def test_bottom_centre_decides_not_box_centre():
     low = person(1, bottom=90)  # box overlaps the zone but its feet are below it
     step(e, 0.0, low)
     assert step(e, 5.0, low) == []
-
-
-def test_cooldown_then_fires_again():
-    e = engine(10, cooldown_s=30)
-    alerts = [a for t in range(0, 45) for a in step(e, float(t), person(1))]
-    assert [a.src_ts for a in alerts] == [10, 40]
 
 
 def test_tracks_are_independent_and_non_persons_ignored():

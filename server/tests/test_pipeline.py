@@ -220,9 +220,11 @@ def test_engine_alert_goes_through_on_alert_and_engine_errors_are_contained():
         raise RuntimeError("handler bug")
 
     src, bus, p = make(FakeDetector([BOX]))
-    p._engine = BehaviorEngine("cam1", [zone], [DwellRule(cooldown_s=0)])
+    p._engine = BehaviorEngine("cam1", [zone], [DwellRule()])
     p._on_alert = boom
     p.start()
-    assert wait_for(lambda: len(bus.events) >= 10)  # detections keep flowing
+    assert wait_for(lambda: p.engine_errors)
+    seen = len(bus.events)
+    assert wait_for(lambda: len(bus.events) >= seen + 10)  # detections keep flowing
     p.stop()
     src.close()
