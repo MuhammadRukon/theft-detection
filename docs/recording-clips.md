@@ -7,9 +7,9 @@ Clips are replayed through the real pipeline (detector, tracker, rules) to measu
 ## Consent and privacy
 
 - Record only people who agreed to be filmed, and tell them what the clips are for.
-- Clips stay on this machine in `server/data/clips/`. That folder is gitignored. Never commit, push or upload clips.
+- Recordings and clips contain people. They stay on this machine in `server/data/recordings/` and `server/data/clips/`, both gitignored. Never commit, push or upload them.
 - Nothing in this project recognises faces. Do not add any.
-- Delete clips when you no longer need them.
+- Nothing deletes recordings or clips automatically. Delete them when you no longer need them.
 
 ## Camera setup
 
@@ -18,6 +18,32 @@ Clips are replayed through the real pipeline (detector, tracker, rules) to measu
 - Decent, steady light. Earlier tests in dim light gave flickery detection.
 - Keep people head to toe in view where you can. The dwell rule uses the bottom-centre of the person box, roughly the feet, so feet must be visible and the zone must be where feet actually stand.
 - Each clip 10-40 s. Start with the scene empty for 1-2 s.
+
+## Recording with the webcam
+
+Recording is off unless you start the servers with `-Record`. Run these from the repo root:
+
+```powershell
+.\dev.ps1 -Record
+```
+
+The script prints `RECORDING ON`. From then on, everything the camera publishes is saved. On the dashboard, press **Start Camera**, act out the clip, then press **Stop Camera**: use one Start/Stop per take, so each take is its own file. Stop the script with Ctrl+C when you are done, and run `.\dev.ps1` without the switch for normal use.
+
+Takes land in `server\data\recordings\cam1\`, named by their start time (`2026-11-27_14-03-12-123456.mp4`). Watch a take before keeping it (Chrome can open the file), then move it to the clips folder under its clip name:
+
+```powershell
+New-Item -ItemType Directory -Force server\data\clips
+Move-Item server\data\recordings\cam1\<take>.mp4 server\data\clips\<name>.mp4
+```
+
+Keep raw takes out of `server\data\clips\`: the evaluation scores every `.mp4` under it.
+
+Takes are never deleted automatically. Delete one, or all that are left, with:
+
+```powershell
+Remove-Item server\data\recordings\cam1\<take>.mp4
+Remove-Item server\data\recordings -Recurse
+```
 
 ## The zone
 
