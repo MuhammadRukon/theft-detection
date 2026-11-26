@@ -4,7 +4,8 @@
 
 Each `X.mp4` needs a label file next to it: `X.json`, else `clip.json` in the same folder:
     {"expected_alerts": [{"type": "dwell", "zone": "door", "at_s": 10}], "notes": "..."}
-`at_s` is the earliest video second the alert may fire. An empty list is a "normal" clip.
+`at_s` is the earliest video second the alert may fire.
+Omit `zone` (or use null) to expect an alert that has no zone. An empty list is a "normal" clip.
 Pass rules (milestone 3, decision 8): each expected alert fires within [at_s, at_s + 3];
 no alert that matches nothing; at most one repeat per expected alert. Exit 1 on any failure.
 """
@@ -60,7 +61,7 @@ def score(name: str, expected: list[dict], alerts: list) -> ClipResult:
             for i, a in enumerate(alerts)
             if i not in used
             and a.type == e["type"]
-            and a.zone == e["zone"]
+            and a.zone == e.get("zone")
             and a.src_ts >= e["at_s"]
         ]
         first = [i for i in mine if alerts[i].src_ts <= e["at_s"] + WINDOW_S]

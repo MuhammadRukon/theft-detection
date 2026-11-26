@@ -67,7 +67,8 @@ export default function DetectionOverlay({
         ctx.stroke();
         ctx.setLineDash([]);
         const [lx, ly] = z.polygon[0];
-        ctx.fillText(`${z.name} (${z.dwell_s} s)`, r.x + lx * r.w + 4, r.y + ly * r.h + 4);
+        const text = z.dwell_s === null ? z.name : `${z.name} (${z.dwell_s} s)`;
+        ctx.fillText(text, r.x + lx * r.w + 4, r.y + ly * r.h + 4);
       }
       if (!d || performance.now() - at >= STALE_MS) return;
       for (const t of d.tracks) {

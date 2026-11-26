@@ -27,6 +27,8 @@ class DwellRule:
         alerts = []
         people = [t for t in obs.tracked if t.class_name == "person"]
         for zone in obs.zones:
+            if zone.dwell_s is None:
+                continue
             for t in people:
                 key = (zone.name, t.track_id)
                 x, y = (t.x1 + t.x2) / 2 / obs.frame_w, t.y2 / obs.frame_h

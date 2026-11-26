@@ -7,7 +7,7 @@ HOT = (0, 0, 255)
 
 
 def render_snapshot(image: np.ndarray, tracks: list, zones: list, alert) -> bytes:
-    """JPEG of the frame with person boxes, all zones outlined, the alert's zone highlighted."""
+    """JPEG of the frame with person boxes and zone outlines; the alert's zone is highlighted."""
     img = image.copy()
     h, w = img.shape[:2]
     for z in zones:

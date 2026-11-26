@@ -44,6 +44,14 @@ def test_score_rules():
     assert score("c", [], []).passed
 
 
+def test_score_without_zone_matches_only_null_zone_alerts():
+    for e in ({"type": "dwell", "at_s": 10}, {"type": "dwell", "zone": None, "at_s": 10}):
+        assert score("c", [e], [alert(11, zone=None)]).passed
+        r = score("c", [e], [alert(11, zone="door")])
+        assert r.missed == 1 and r.false_alarms == 1
+    assert score("c", [E], [alert(11, zone=None)]).missed == 1
+
+
 def test_id_switches():
     def ev(*ids):
         return SimpleNamespace(tracks=[SimpleNamespace(track_id=i) for i in ids])

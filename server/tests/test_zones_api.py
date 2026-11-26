@@ -25,6 +25,11 @@ def test_returns_loaded_zones():
     ]
 
 
+def test_zone_without_dwell_s_is_null():
+    c = client([Zone("door", ((0, 0), (1, 0), (1, 1)))])
+    assert c.get("/api/zones", params={"camera_id": "cam1"}).json()[0]["dwell_s"] is None
+
+
 def test_empty_when_none_loaded():
     assert client().get("/api/zones", params={"camera_id": "cam1"}).json() == []
     assert client([]).get("/api/zones", params={"camera_id": "cam1"}).json() == []

@@ -57,6 +57,13 @@ def test_load_zones_ok(tmp_path):
     )
 
 
+def test_load_zones_without_dwell_s(tmp_path):
+    raw = zone()
+    del raw["dwell_s"]
+    (z,) = load_zones(write(tmp_path, {"cam1": [raw]}))["cam1"]
+    assert z.dwell_s is None
+
+
 @pytest.mark.parametrize(
     "data, msg",
     [
@@ -69,6 +76,8 @@ def test_load_zones_ok(tmp_path):
         ({"cam1": [zone(polygon=[[0, 0], [1, 1], [0.5]])]}, "[x, y]"),
         ({"cam1": [zone(dwell_s=0)]}, "dwell_s"),
         ({"cam1": [zone(dwell_s="5")]}, "dwell_s"),
+        ({"cam1": [zone(dwell_s=-1)]}, "dwell_s"),
+        ({"cam1": [zone(dwell_s=None)]}, "dwell_s"),
         ({"cam1": [zone(name="")]}, "name"),
         ({"cam1": [zone(), zone()]}, "duplicate zone name 'door'"),
     ],
@@ -154,6 +163,12 @@ def test_tracks_are_independent_and_non_persons_ignored():
     step(e, 7.0, person(1), person(2))
     got = [a for t in range(8, 20) for a in step(e, float(t), person(1), person(2))]
     assert [(a.src_ts, a.track_ids) for a in got] == [(16, (2,)), (17, (1,))]
+
+
+def test_dwell_ignores_zone_without_dwell_s():
+    e = make_engine("cam1", [Zone("plain", SQUARE), Zone("door", SQUARE, 1)])
+    step(e, 0.0, person(1))
+    assert [a.zone for a in step(e, 60.0, person(1)) + step(e, 61.0, person(1))] == ["door"]
 
 
 def test_make_engine_has_dwell():
