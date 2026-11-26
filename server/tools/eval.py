@@ -5,13 +5,14 @@
 Each `X.mp4` needs a label file next to it: `X.json`, else `clip.json` in the same folder:
     {"expected_alerts": [{"type": "dwell", "zone": "door", "at_s": 10}], "notes": "..."}
 `at_s` is the earliest video second the alert may fire.
-Omit `zone` (or use null) to expect an alert that has no zone. An empty list is a "normal" clip.
+`zone` names a zone that has `dwell_s`. An empty list is a "normal" clip.
 Pass rules (milestone 3, decision 8): each expected alert fires within [at_s, at_s + 3];
 no alert that matches nothing; at most one repeat per expected alert. Exit 1 on any failure.
 """
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,7 +25,7 @@ from app.sources import FileFrameSource
 from app.tracking import PersonTracker
 
 WINDOW_S = 3.0
-KNOWN_TYPES = {"dwell"}
+KNOWN_TYPES = ("dwell",)  # a tuple, so any JSON value can be tested for membership
 
 
 class LabelError(ValueError):
@@ -58,32 +59,24 @@ def load_expected(mp4: Path, zones: list[Zone]) -> list[dict]:
     expected = data["expected_alerts"]
     if not isinstance(expected, list):
         raise LabelError(f"expected_alerts: {expected!r} is not a list")
-    known_zones = [z.name for z in zones]
-    known_types = ", ".join(sorted(KNOWN_TYPES))
+    dwell_zones = [z.name for z in zones if z.dwell_s is not None]
     for number, entry in enumerate(expected, 1):
         where = f"expected_alerts[{number}]"
         if not isinstance(entry, dict):
             raise LabelError(f"{where}: {entry!r} is not an object")
         kind = entry.get("type")
-        if not isinstance(kind, str) or kind not in KNOWN_TYPES:
-            raise LabelError(f"{where}.type: {kind!r} is not a known type (known: {known_types})")
+        if kind not in KNOWN_TYPES:
+            known = ", ".join(KNOWN_TYPES)
+            raise LabelError(f"{where}.type: {kind!r} is not a known type (known: {known})")
         at_s = entry.get("at_s")
-        if isinstance(at_s, bool) or not isinstance(at_s, (int, float)) or at_s < 0:
+        number_like = isinstance(at_s, (int, float)) and not isinstance(at_s, bool)
+        if not (number_like and math.isfinite(at_s) and at_s >= 0):
             raise LabelError(f"{where}.at_s: {at_s!r} is not a number >= 0")
         zone = entry.get("zone")
-        if zone is not None:
-            if not isinstance(zone, str):
-                raise LabelError(
-                    f"{where}.zone: {zone!r} is not a string "
-                    f"(known zones: {', '.join(known_zones)})"
-                )
-            if zone not in known_zones:
-                raise LabelError(
-                    f"{where}.zone: {zone!r} is not a known zone "
-                    f"(known zones: {', '.join(known_zones)})"
-                )
-        if kind == "dwell" and zone is None:
-            raise LabelError(f"{where}.zone: missing (a dwell entry needs a zone)")
+        # every known type is a dwell alert: it needs a zone the dwell rule actually watches
+        if zone not in dwell_zones:
+            known = ", ".join(dwell_zones)
+            raise LabelError(f"{where}.zone: {zone!r} is not a zone with dwell_s (known: {known})")
     return expected
 
 

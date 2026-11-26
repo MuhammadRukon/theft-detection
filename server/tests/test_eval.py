@@ -157,8 +157,8 @@ def test_main_prints_zones_and_fails_without_zones_for_camera(tmp_path, capsys):
 
 
 ZONES = [
-    Zone("door", ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0))),
-    Zone("porch", ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))),
+    Zone("door", ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0)), dwell_s=1.0),
+    Zone("porch", ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)), dwell_s=1.0),
 ]
 
 
@@ -211,7 +211,7 @@ def test_label_type_must_be_known(tmp_path):
 
 
 def test_label_at_s_must_be_a_non_negative_number(tmp_path):
-    for bad in (True, "1", None, -1, -0.5):
+    for bad in (True, "1", None, -1, -0.5, float("nan"), float("inf")):
         message = label_error(tmp_path, [{"type": "dwell", "zone": "door", "at_s": bad}])
         assert "expected_alerts[1]" in message and "at_s" in message
         assert repr(bad) in message
@@ -231,6 +231,15 @@ def test_label_dwell_entry_requires_zone(tmp_path):
     for entry in ({"type": "dwell", "at_s": 1}, {"type": "dwell", "zone": None, "at_s": 1}):
         message = label_error(tmp_path, [entry])
         assert "expected_alerts[1]" in message and "zone" in message
+
+
+def test_label_dwell_zone_needs_dwell_s(tmp_path):
+    # the dwell rule skips such a zone, so the label could only ever score as "missed"
+    make_clip(tmp_path / "clip.mp4")
+    label(tmp_path / "clip.json", [{"type": "dwell", "zone": "yard", "at_s": 1}])
+    yard = Zone("yard", ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0)))
+    with pytest.raises(LabelError, match="yard.*dwell_s.*door"):
+        load_expected(tmp_path / "clip.mp4", [yard, *ZONES])
 
 
 def test_label_error_names_entry_number_field_and_value(tmp_path):
