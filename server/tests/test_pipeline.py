@@ -2,6 +2,7 @@ import threading
 import time
 
 import numpy as np
+import pytest
 
 from app.detection.base import Detection, FakeDetector
 from app.events import DetectionsEvent
@@ -60,6 +61,68 @@ def wait_for(cond, timeout=5.0):
     while not cond() and time.monotonic() < end:
         time.sleep(0.01)
     return cond()
+
+
+class FlakyDetector(FakeDetector):
+    """Raises on the frames where `fail` says so; by default on every frame."""
+
+    def __init__(self, fail=lambda call: True):
+        super().__init__([BOX])
+        self.fail = fail
+
+    def detect(self, image):
+        found = super().detect(image)
+        if self.fail(self.calls):
+            raise RuntimeError("boom")
+        return found
+
+
+class FailingEngine:
+    def update(self, *args):
+        raise RuntimeError("rule bug")
+
+
+class ScriptedSource:
+    """One fresh frame per entry in `times`, setting the log clock to it, then stops the loop.
+
+    Lets a test call Pipeline._run() on its own thread: no background threads, nothing to wait on.
+    """
+
+    def __init__(self):
+        self.now, self.times, self.pipeline = 0.0, [], None
+
+    def latest(self):
+        if not self.times:
+            self.pipeline._stop.set()
+            return None
+        self.now = self.times.pop(0)
+        return Frame("cam1", time.time(), 0.0, None, W, H, np.zeros((H, W, 3), np.uint8))
+
+
+@pytest.fixture
+def scripted(monkeypatch, caplog):
+    caplog.set_level("ERROR", logger="app.pipeline")
+    src, bus = ScriptedSource(), Bus()
+    # raising=False: without the hook the tests still reach their assertions and fail there
+    monkeypatch.setattr("app.pipeline._log_clock", lambda: src.now, raising=False)
+
+    def build(detector, engine=None):
+        src.pipeline = Pipeline(
+            src, detector, PersonTracker(1000), bus, "cam1", 1000, engine=engine
+        )
+
+        def run(*times):
+            src.times = list(times)
+            src.pipeline._stop.clear()
+            src.pipeline._run()
+
+        return src.pipeline, bus, run
+
+    return build
+
+
+def _traces(caplog, msg):
+    return [r.getMessage() for r in caplog.records if msg in r.getMessage() and r.exc_info]
 
 
 def test_publishes_normalized_tracks_after_confirmation():
@@ -139,6 +202,34 @@ def test_failed_detector_load_is_contained():
     p.stop()
     src.close()
     assert bus.events == [] and p.stats().inference_fps is None
+
+
+def test_detector_error_logs_once_per_window_and_counts_suppressed(scripted, caplog):
+    _, bus, run = scripted(FlakyDetector())
+    run(1000, 1000, 1000, 1000, 1029.9)
+    assert len(_traces(caplog, "inference error")) == 1
+    run(1030)
+    traces = _traces(caplog, "inference error")
+    assert len(traces) == 2 and "(4 suppressed since last log)" in traces[1]
+    assert bus.events == []
+
+
+def test_engine_error_logs_once_per_window_and_counts_suppressed(scripted, caplog):
+    _, bus, run = scripted(FakeDetector([BOX]), FailingEngine())
+    run(1000, 1000, 1000, 1029.9)
+    assert len(_traces(caplog, "behavior engine error")) == 1
+    run(1030)
+    traces = _traces(caplog, "behavior engine error")
+    assert len(traces) == 2 and "(3 suppressed since last log)" in traces[1]
+    assert len(bus.events) == 5  # detections still published
+
+
+def test_inference_and_engine_error_windows_are_independent(scripted, caplog):
+    # odd calls fail in the detector, even calls get through to the failing engine
+    _, _, run = scripted(FlakyDetector(lambda call: call % 2 == 1), FailingEngine())
+    run(1000, 1000, 1000, 1000)
+    assert len(_traces(caplog, "inference error")) == 1
+    assert len(_traces(caplog, "behavior engine error")) == 1
 
 
 def test_stop_is_prompt():

@@ -16,6 +16,31 @@ from app.sources.fps import RollingFps
 from app.tracking import PersonTracker, TrackedDetection
 
 log = logging.getLogger(__name__)
+_log_clock = time.monotonic  # the throttle's own clock, so tests can fake it alone
+
+
+class _ErrorLogThrottle:
+    """Rate-limits repeated failure tracebacks to one per `interval` seconds, counting the rest.
+
+    One instance per call site: a failing detector must not silence the behavior engine.
+    """
+
+    def __init__(self, interval: float = 30.0):
+        self._interval = interval
+        self._last: float | None = None
+        self._suppressed = 0
+
+    def log(self, logger: logging.Logger, msg: str, *args: object) -> None:
+        now = _log_clock()
+        if self._last is None or now - self._last >= self._interval:
+            # First failure of a streak, or the window elapsed: report with the count suppressed.
+            if self._last is not None:
+                msg = f"{msg} ({self._suppressed} suppressed since last log)"
+            logger.exception(msg, *args)
+            self._last = now
+            self._suppressed = 0
+        else:
+            self._suppressed += 1
 
 
 @dataclass(frozen=True)
@@ -66,6 +91,8 @@ class Pipeline:
         self._infer_ms = RollingStats(30)
         self._e2e_ms = RollingStats(30)
         self._status: Literal["loading", "running", "failed"] = "loading"
+        self._inference_error_log = _ErrorLogThrottle()
+        self._engine_error_log = _ErrorLogThrottle()
 
     def start(self) -> None:
         self._stop.clear()
@@ -107,7 +134,7 @@ class Pipeline:
             try:
                 self.process(detector, frame)
             except Exception:
-                log.exception("%s: inference error", self._camera_id)
+                self._inference_error_log.log(log, "%s: inference error", self._camera_id)
             # a slow detector overruns the period: the wait is 0 and the next newest frame is taken
             self._stop.wait(max(t0 + self._period - time.monotonic(), 0))
 
@@ -138,7 +165,7 @@ class Pipeline:
                     if self._alert_sink:
                         self._alert_sink(alert, frame.image, tracked)
             except Exception:
-                log.exception("%s: behavior engine error", self._camera_id)
+                self._engine_error_log.log(log, "%s: behavior engine error", self._camera_id)
         latency_ms = (time.time() - frame.ts) * 1000
         # Published even when empty, so the overlay clears.
         self._bus.publish(
