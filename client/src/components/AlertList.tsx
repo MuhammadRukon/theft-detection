@@ -20,28 +20,13 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
     return () => window.clearInterval(t);
   }, []);
 
-  // Drive the native <dialog> through the imperative API; Escape, focus trapping
-  // and focus return are handled natively.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      dialog.showModal();
-    } else if (dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
-  // Keep React state in sync when the native dialog closes itself (Escape, Close, backdrop).
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const handleClose = () => setOpen(null);
-    dialog.addEventListener("close", handleClose);
-    return () => dialog.removeEventListener("close", handleClose);
-  }, [open]);
-
-  const close = () => setOpen(null);
+  // The <dialog> stays mounted: closing it through close() (or Escape) is what makes the
+  // browser return focus to the thumbnail.
+  const show = (url: string) => {
+    setOpen(url);
+    dialogRef.current?.showModal();
+  };
+  const close = () => dialogRef.current?.close();
 
   return (
     <div className="p-6">
@@ -60,7 +45,7 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
             >
               <button
                 type="button"
-                onClick={() => setOpen(a.evidence_url)}
+                onClick={() => show(a.evidence_url)}
                 aria-label={label}
                 className="shrink-0"
               >
@@ -85,27 +70,25 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
           );
         })}
       </ul>
-      {open && (
-        <dialog
-          ref={dialogRef}
-          aria-label="Alert snapshot"
-          onClick={(e) => {
-            // Only the dark backdrop (the dialog element itself) closes; clicks on
-            // the image are ignored.
-            if (e.target === e.currentTarget) close();
-          }}
-          className="m-0 fixed inset-0 z-10 flex max-h-full max-w-full flex-col items-center justify-center overflow-hidden rounded bg-black p-6"
+      <dialog
+        ref={dialogRef}
+        aria-label="Alert snapshot"
+        onClose={() => setOpen(null)}
+        onClick={(e) => {
+          // The dialog fills the window: a click on it, not on a child, is the dark area.
+          if (e.target === e.currentTarget) close();
+        }}
+        className="m-0 h-full max-h-none w-full max-w-none flex-col items-center justify-center gap-4 border-0 bg-black/80 p-6 open:flex"
+      >
+        {open && <img src={open} alt="Alert snapshot" className="min-h-0 max-w-full object-contain" />}
+        <button
+          type="button"
+          onClick={close}
+          className="shrink-0 rounded bg-red-600 px-3 py-1 text-white"
         >
-          <img src={open} alt="Alert snapshot" className="max-h-full max-w-full rounded" />
-          <button
-            type="button"
-            onClick={close}
-            className="mt-4 rounded bg-red-600 px-3 py-1 text-white"
-          >
-            Close
-          </button>
-        </dialog>
-      )}
+          Close
+        </button>
+      </dialog>
     </div>
   );
 }
