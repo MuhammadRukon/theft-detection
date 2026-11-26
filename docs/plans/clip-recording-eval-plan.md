@@ -149,7 +149,7 @@ Rerun by the orchestrator with synthetic H.264 published over RTSP (no camera):
 - [x] AC4: two publishes, two files.
 - [x] AC5: `RECORDING ON` only on `-Record` runs.
 - [x] AC6: `git status` showed no media.
-- [x] AC7: user's Chrome take is `h264`, 113.44 s, 1581 frames, resolution changed mid-take (1280x720 and 960x540), largest frame gap 0.49 s. A copy labelled `[]` gave `PASS`, exit 0 with the fake detector (sample zones); copy deleted. The take was not viewed, so "empty room" is not confirmed.
+- [x] AC7: user's Chrome take is `h264`, 113.44 s, 1581 frames, resolution changed mid-take (1280x720 and 960x540), largest frame gap 0.49 s. A copy labelled `[]` gave `PASS`, exit 0 with the fake detector (sample zones); copy deleted. The user reported afterwards that the camera was covered, so this shows only that a Chrome take saves and replays; real picture content is first checked in Phase 2.
 - [x] AC8: `145 passed`, ruff `All checks passed!`.
 - Deviations: added `[CmdletBinding()]` to `dev.ps1` so a mistyped switch is an error.
 - Known: each synthetic take holds 149 of 150 published frames.
