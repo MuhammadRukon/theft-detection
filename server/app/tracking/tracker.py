@@ -22,10 +22,11 @@ class TrackedDetection:
 
 class PersonTracker:
     def __init__(self, frame_rate: float, min_conf: float = 0.4):
-        # frame_rate is the inference rate, not the camera's: it scales the lost-track buffer
-        # (library default 30 frames @30fps = ~1s, so 5 frames @5fps).
+        # frame_rate is the inference rate, not the camera's. lost_track_buffer is counted in 30 fps
+        # frames whatever the rate: 60 = 2 s (10 frames @5fps), matching the dwell rule's grace.
         # Library defaults (0.7 / 0.6) would never start a track for persons at detect_conf 0.4.
         self._tracker = ByteTrackTracker(
+            lost_track_buffer=60,
             frame_rate=frame_rate,
             track_activation_threshold=min_conf,
             high_conf_det_threshold=min_conf,
