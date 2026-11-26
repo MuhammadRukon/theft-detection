@@ -6,7 +6,8 @@ from pydantic import BaseModel
 
 
 class EventBus:
-    """Worker threads publish; SSE tasks subscribe. Slow subscribers lose their oldest events."""
+    """Worker threads publish; SSE tasks subscribe. Slow subscribers lose their oldest events,
+    taking those without a truthy `keep` attribute first."""
 
     def __init__(self, maxsize: int = 32):
         self._maxsize = maxsize
@@ -27,9 +28,14 @@ class EventBus:
 
     def _deliver(self, event: BaseModel) -> None:
         for q in self._subs:
-            if q.full():
-                q.get_nowait()
-            q.put_nowait(event)
+            if not q.full():
+                q.put_nowait(event)
+                continue
+            items = [q.get_nowait() for _ in range(q.qsize())] + [event]
+            drop = next((i for i, e in enumerate(items) if not getattr(e, "keep", False)), 0)
+            del items[drop]
+            for item in items:
+                q.put_nowait(item)
 
     @contextmanager
     def subscribe(self) -> Iterator[asyncio.Queue[BaseModel]]:

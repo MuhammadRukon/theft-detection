@@ -37,14 +37,14 @@ export default function AlertList({ alerts }: { alerts: AlertEvent[] }) {
                 <img
                   src={a.evidence_url}
                   loading="lazy"
-                  alt={`${a.type} in ${a.zone}`}
+                  alt={a.zone === null ? a.type : `${a.type} in ${a.zone}`}
                   className="h-16 w-28 rounded bg-black object-cover"
                 />
               </button>
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">
-                    {a.type} · {a.zone}
+                    {a.zone === null ? a.type : `${a.type} · ${a.zone}`}
                   </span>
                   <span className="rounded bg-red-600 px-1.5 text-xs text-white">{a.score}</span>
                   <span className="ml-auto text-sm text-gray-500">{ago(age)}</span>

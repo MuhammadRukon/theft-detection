@@ -1,6 +1,6 @@
 # Theft detection (proof of concept)
 
-A modular, real-time computer-vision surveillance POC. A webcam stream goes to MediaMTX over WebRTC (WHIP). The Python server reads it over RTSP, detects and tracks people, and applies a simple "dwell in a zone" rule. The React dashboard shows the live video with boxes, stats, and (once the dashboard phase lands) alerts.
+A modular, real-time computer-vision surveillance POC. A webcam stream goes to MediaMTX over WebRTC (WHIP). The Python server reads it over RTSP, detects and tracks people, and applies a simple "dwell in a zone" rule. The React dashboard shows the live video with boxes and zones, stats, and alerts.
 
 This is a proof of concept: no authentication, no database, CPU-only inference, one camera, one rule.
 
@@ -47,11 +47,11 @@ cd server; uv sync; cd ..
 
 Open `http://localhost:5173` (or `http://127.0.0.1:5173`; these are the only origins MediaMTX allows). Click **Start Camera**, allow the webcam, then click **Connect**.
 
-The stats panel shows ingest FPS, resolution, decode time, inference FPS, inference p50/p95, server latency (decode to publish) and a **Detector** row (loading, running or failed). Green boxes with `#id confidence` follow people.
+The stats panel shows ingest FPS, resolution, decode time, inference FPS, inference p50/p95, server latency (decode to publish) and a **Detector** row (loading, running or failed). Boxes follow people, coloured per track ID and labelled with the ID and confidence percent (`#3 87%`).
 
 ## Dwell alerts
 
-A person standing inside a zone for longer than the zone's `dwell_s` raises one alert (then a 30 s cooldown). Zones are polygons in normalized 0-1 coordinates in `server/config/zones.json` (copy `server/config/zones.sample.json`, which is used if the real file is absent; the real file is gitignored). The rule uses the bottom-centre of the person's box, roughly the feet. Each alert is saved with an annotated snapshot under `server/data/alerts/` and sent over SSE; `GET /api/alerts` lists them.
+A person standing inside a zone for the zone's `dwell_s` raises one alert per visit. The visit ends once they have not been seen inside for more than 2 s; shorter absences keep the timer running. Zones are polygons in normalized 0-1 coordinates in `server/config/zones.json` (copy `server/config/zones.sample.json`, which is used if the real file is absent; the real file is gitignored). The rule uses the bottom-centre of the person's box, roughly the feet. Each alert is saved with an annotated snapshot under `server/data/alerts/` and sent over SSE; `GET /api/alerts` lists them and `GET /api/zones?camera_id=cam1` returns the loaded zones.
 
 ## Replay and evaluation
 
@@ -77,14 +77,14 @@ Environment variables read by the server (`server/app/config.py`):
 | `INFERENCE_FPS` | `5.0` | Target inference rate |
 | `ZONES_PATH` | `server/config/zones.json` (else the sample) | Zones file |
 | `ALERTS_DIR` | `server/data/alerts` | Alert and snapshot folder |
-| `ALERT_RETENTION_DAYS` | `7` | Alerts older than this are removed at startup |
+| `ALERT_RETENTION_DAYS` | `7` | Alerts older than this are removed at startup and then hourly |
 
 ## Ports
 
 | Port | What | Reachable from |
 | --- | --- | --- |
 | 5173 | Vite dev server | localhost |
-| 8000 | FastAPI (`/api/events`, `/api/alerts`) | localhost |
+| 8000 | FastAPI (`/api/events`, `/api/alerts`, `/api/zones`) | localhost |
 | 8889 | MediaMTX WHIP/WHEP | localhost |
 | 8554 | MediaMTX RTSP | localhost |
 | 8189/udp | MediaMTX WebRTC media | **local network** |

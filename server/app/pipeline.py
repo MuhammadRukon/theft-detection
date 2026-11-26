@@ -84,6 +84,7 @@ class Pipeline:
         self._on_alert = on_alert
         self._alert_sink = alert_sink  # (alert, image, tracked): the live app's AlertService.handle
         self._engine = engine
+        self.engine_errors = 0  # swallowed in process(); tools/eval.py fails a clip on any
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._fps = RollingFps()
@@ -165,6 +166,7 @@ class Pipeline:
                     if self._alert_sink:
                         self._alert_sink(alert, frame.image, tracked)
             except Exception:
+                self.engine_errors += 1
                 self._engine_error_log.log(log, "%s: behavior engine error", self._camera_id)
         latency_ms = (time.time() - frame.ts) * 1000
         # Published even when empty, so the overlay clears.

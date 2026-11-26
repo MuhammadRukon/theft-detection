@@ -215,12 +215,13 @@ def test_detector_error_logs_once_per_window_and_counts_suppressed(scripted, cap
 
 
 def test_engine_error_logs_once_per_window_and_counts_suppressed(scripted, caplog):
-    _, bus, run = scripted(FakeDetector([BOX]), FailingEngine())
+    p, bus, run = scripted(FakeDetector([BOX]), FailingEngine())
     run(1000, 1000, 1000, 1029.9)
     assert len(_traces(caplog, "behavior engine error")) == 1
     run(1030)
     traces = _traces(caplog, "behavior engine error")
     assert len(traces) == 2 and "(3 suppressed since last log)" in traces[1]
+    assert p.engine_errors == 5  # every error counted, logged or not
     assert len(bus.events) == 5  # detections still published
 
 
@@ -311,9 +312,11 @@ def test_engine_alert_goes_through_on_alert_and_engine_errors_are_contained():
         raise RuntimeError("handler bug")
 
     src, bus, p = make(FakeDetector([BOX]))
-    p._engine = BehaviorEngine("cam1", [zone], [DwellRule(cooldown_s=0)])
+    p._engine = BehaviorEngine("cam1", [zone], [DwellRule()])
     p._on_alert = boom
     p.start()
-    assert wait_for(lambda: len(bus.events) >= 10)  # detections keep flowing
+    assert wait_for(lambda: p.engine_errors)
+    seen = len(bus.events)
+    assert wait_for(lambda: len(bus.events) >= seen + 10)  # detections keep flowing
     p.stop()
     src.close()

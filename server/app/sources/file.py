@@ -13,6 +13,8 @@ class FileFrameSource(FrameSource):
     `realtime=False`: no pacing, decodes as fast as possible (replay/eval).
     """
 
+    count_gaps = False  # source time must not depend on when or how fast the file is read
+
     def __init__(self, camera_id: str, path: str, loop: bool = True, realtime: bool = True):
         super().__init__(camera_id)
         self.path = path

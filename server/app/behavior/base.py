@@ -7,7 +7,7 @@ from app.tracking import TrackedDetection
 @dataclass(frozen=True)
 class Alert:
     type: str
-    zone: str
+    zone: str | None  # None: the rule is not tied to a zone
     camera_id: str
     src_ts: float  # video time when the rule fired
     ts: float  # wall clock
@@ -20,7 +20,7 @@ class Alert:
 class Zone:
     name: str
     polygon: tuple[tuple[float, float], ...]  # normalized 0-1 (x, y)
-    dwell_s: float
+    dwell_s: float | None = None  # None: the dwell rule skips this zone
 
 
 @dataclass(frozen=True)

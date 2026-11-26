@@ -40,7 +40,7 @@ export interface AlertEvent {
   type: string;
   score: number; // 0-100
   reason: string;
-  zone: string;
+  zone: string | null; // null: the alert is not tied to a zone
   track_ids: number[];
   src_ts: number; // video time of the trigger frame
   ts: number; // wall clock, epoch seconds
@@ -51,5 +51,5 @@ export interface AlertEvent {
 export interface Zone {
   name: string;
   polygon: [number, number][];
-  dwell_s: number;
+  dwell_s: number | null;
 }

@@ -43,7 +43,9 @@ def _zone(cam: str, i: int, raw) -> Zone:
         if not (isinstance(p, list) and len(p) == 2 and all(_num(v) and 0 <= v <= 1 for v in p)):
             raise ZonesError(f"{where}: point {p!r} must be [x, y] with both in 0-1")
         poly.append((float(p[0]), float(p[1])))
-    dwell = raw.get("dwell_s")
+    if "dwell_s" not in raw:
+        return Zone(name, tuple(poly))
+    dwell = raw["dwell_s"]
     if not _num(dwell) or dwell <= 0:
         raise ZonesError(f"{where}: 'dwell_s' must be a number > 0")
     return Zone(name, tuple(poly), float(dwell))

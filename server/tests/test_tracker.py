@@ -32,7 +32,6 @@ def test_empty_update_returns_empty():
 
 
 def test_id_survives_short_gap():
-    # lost buffer at 5 fps is 5 frames (30 @ 30fps scaled); a 2-frame gap is well inside it
     t = PersonTracker(5.0)
     outs = run(t, [[box(100)]] * 4)
     tid = outs[-1][0].track_id
@@ -53,3 +52,12 @@ def test_low_conf_detection_keeps_confirmed_track():
     tid = run(t, [[box(100)]] * 4)[-1][0].track_id
     out = t.update([box(100, conf=0.3)])
     assert [d.track_id for d in out] == [tid]
+
+
+def test_id_survives_two_second_gap():
+    # 10 missed frames at 5 fps: the dwell rule's 2 s grace needs the same ID back
+    t = PersonTracker(5.0)
+    tid = run(t, [[box(100)]] * 4)[-1][0].track_id
+    run(t, [[]] * 10)
+    back = t.update([box(100)])
+    assert back and back[0].track_id == tid

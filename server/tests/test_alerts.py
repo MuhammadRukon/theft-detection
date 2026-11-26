@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 
 import cv2
@@ -10,15 +11,15 @@ from fastapi.testclient import TestClient
 
 from app.alerts import AlertService, AlertStore, render_snapshot, valid_alert_id
 from app.api.events import events, router
-from app.events import AlertEvent, EventBus
+from app.events import AlertEvent, EventBus, format_sse
 from app.sources.base import SourceStats
 
 JPEG = cv2.imencode(".jpg", np.zeros((8, 8, 3), np.uint8))[1].tobytes()
 
 
-def mk(alert_id, ts=1000.0, camera_id="cam1"):
+def mk(alert_id, ts=1000.0, camera_id="cam1", zone="door"):
     return AlertEvent(
-        alert_id=alert_id, camera_id=camera_id, type="dwell", score=60, reason="r", zone="door",
+        alert_id=alert_id, camera_id=camera_id, type="dwell", score=60, reason="r", zone=zone,
         track_ids=[1], src_ts=1.0, ts=ts, evidence_url=f"/api/alerts/{alert_id}/snapshot.jpg",
     )  # fmt: skip
 
@@ -39,6 +40,16 @@ def test_store_roundtrip_order_reload(tmp_path):
     assert s.snapshot_path("a1").read_bytes() == JPEG
     assert s.snapshot_path("zz") is None
     assert [a.alert_id for a in AlertStore(tmp_path, 7).list(10)] == ["a3", "a2", "a1"]
+
+
+def test_null_zone_roundtrips_store_rest_and_sse(tmp_path):
+    s = AlertStore(tmp_path, 7)
+    s.save(mk("a1"), JPEG)
+    s.save(mk("a2", zone=None), JPEG)
+    reloaded = AlertStore(tmp_path, 7)
+    assert [a.zone for a in reloaded.list()] == [None, "door"]
+    assert [a["zone"] for a in client(reloaded).get("/api/alerts").json()] == [None, "door"]
+    assert json.loads(format_sse("alert", reloaded.get("a2")).split("data: ")[1])["zone"] is None
 
 
 def test_store_ignores_partial_and_corrupt(tmp_path):
@@ -88,6 +99,21 @@ def test_render_snapshot():
     assert out.shape == img.shape
     assert np.abs(out.astype(int) - img).max() > 50
     assert (img == 128).all()  # input untouched
+
+
+def test_render_snapshot_without_zone_highlights_none():
+    img = np.full((120, 160, 3), 128, np.uint8)
+    zones = [SimpleNamespace(name="door", polygon=[[0.5, 0.1], [0.9, 0.1], [0.9, 0.9]])]
+    jpeg = render_snapshot(img, [], zones, fake_alert(zone=None))
+    out = cv2.imdecode(np.frombuffer(jpeg, np.uint8), 1)
+    inside = out[40, 130].astype(int)  # well inside the triangle: not filled
+    assert np.abs(inside - 128).max() < 10
+
+
+def test_service_keeps_null_zone(tmp_path):
+    svc = AlertService(AlertStore(tmp_path, 7), EventBus(), {})
+    ev = svc.handle(fake_alert(zone=None), np.zeros((20, 20, 3), np.uint8), [])
+    assert ev is not None and ev.zone is None
 
 
 def test_service_publishes_and_survives_failure(tmp_path):
@@ -191,3 +217,24 @@ def test_rest_without_store():
     c = client()
     assert c.get("/api/alerts").json() == []
     assert c.get("/api/alerts/a1/snapshot.jpg").status_code == 404
+
+
+def test_store_removes_leftover_tmp_folders_at_startup(tmp_path):
+    (tmp_path / ".tmp-abc").mkdir()
+    (tmp_path / ".tmp-abc" / "snapshot.jpg").write_bytes(JPEG)
+    AlertStore(tmp_path, 7)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_missing_snapshot_file_is_404(tmp_path):
+    s = AlertStore(tmp_path, 7)
+    s.save(mk("a1"), JPEG)
+    (tmp_path / "a1" / "snapshot.jpg").unlink()
+    assert client(s).get("/api/alerts/a1/snapshot.jpg").status_code == 404
+
+
+def test_service_logs_trigger_to_publish_time(tmp_path, caplog):
+    svc = AlertService(AlertStore(tmp_path, 7), EventBus(), {})
+    with caplog.at_level("INFO", logger="alerts"):
+        svc.handle(fake_alert(ts=time.time()), np.zeros((20, 20, 3), np.uint8), [])
+    assert len([m for m in caplog.messages if "ms after trigger" in m]) == 1

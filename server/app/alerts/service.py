@@ -40,6 +40,8 @@ class AlertService:
             zones = self.zones_by_camera.get(alert.camera_id, [])
             self.store.save(event, render_snapshot(image, tracks, zones, alert))
             self.bus.publish(event)
+            ms = (time.time() - alert.ts) * 1000
+            log.info("alert %s published %.0f ms after trigger", alert_id, ms)
             return event
         except Exception:
             log.exception("alert handling failed")

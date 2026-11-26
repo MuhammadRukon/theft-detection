@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -40,12 +42,14 @@ class DetectionsEvent(BaseModel):
 
 
 class AlertEvent(BaseModel):
+    keep: ClassVar[bool] = True  # EventBus drops other events first; not serialized
+
     alert_id: str
     camera_id: str
     type: str
     score: int = Field(ge=0, le=100)
     reason: str
-    zone: str
+    zone: str | None = None
     track_ids: list[int]
     # video time of the trigger frame, and wall clock
     src_ts: float

@@ -79,6 +79,8 @@ class FrameSource(ABC):
         self._src_first: float | None = None
         self._src_offset = 0.0
         self._src_last: float | None = None
+        self._src_mono = 0.0  # monotonic time of the last stamped frame
+        self._src_has_pts = False
 
     def start(self) -> None:
         self._stop.clear()
@@ -118,6 +120,9 @@ class FrameSource(ABC):
 
     # True: a clean end of stream (e.g. file EOF) reopens at once instead of backing off.
     loop_on_end = False
+    # True: live source, so source time includes the outage between sessions. Files set False to
+    # keep source time free of the wall clock.
+    count_gaps = True
     # True: one-shot source. End of stream or any error sets `ended` and the reader stops.
     stop_on_end = False
 
@@ -125,10 +130,7 @@ class FrameSource(ABC):
         backoff = 1.0
         while not self._stop.is_set():
             try:
-                # Source time restarts at each (re)open; continue after the last frame instead.
-                # shortcut: 1 ms gap at a reopen, fine for dev loops and reconnects.
-                self._src_offset = 0.0 if self._src_last is None else self._src_last + 0.001
-                self._src_first = None
+                self._new_session()
                 with self._open() as container:
                     backoff = 1.0
                     for packet in container.demux(video=0):
@@ -170,14 +172,37 @@ class FrameSource(ABC):
         self.ended.set()
         return True
 
+    def _new_session(self) -> None:
+        """Source time restarts at each (re)open; _source_ts continues after the last frame."""
+        self._src_first = None
+
     def _source_ts(self, frame) -> float:
-        # frame.time is pts * time_base. Without pts (some RTSP streams) use elapsed monotonic
-        # time since the first frame, which is wall-clock-like but never goes backwards.
-        t = frame.time if frame.pts is not None else time.monotonic()
-        if self._src_first is None:
+        # One clock per session, picked by its first frame: pts (frame.time is pts * time_base),
+        # else monotonic time (some RTSP streams carry no pts).
+        # shortcut: in a pts session a frame without pts repeats the last stamp, so a stream that
+        # drops pts for good stalls source time until the next reconnect.
+        mono = time.monotonic()
+        first_of_session = self._src_first is None
+        if first_of_session:
+            self._src_has_pts = frame.pts is not None
+        if not self._src_has_pts:
+            t = mono
+        else:
+            t = frame.time if frame.pts is not None else None
+        if first_of_session:
+            gap = max(mono - self._src_mono, 0.001) if self.count_gaps else 0.001
+            self._src_offset = 0.0 if self._src_last is None else self._src_last + gap
             self._src_first = t
-        self._src_last = self._src_offset + t - self._src_first
-        return self._src_last
+        self._src_mono = mono
+        if t is None:
+            return self._src_last
+        ts = self._src_offset + t - self._src_first
+        if self._src_last is not None and ts < self._src_last:
+            # timestamps jumped back: hold this frame and shift the base so time keeps advancing
+            self._src_offset += self._src_last - ts
+            ts = self._src_last
+        self._src_last = ts
+        return ts
 
     def _publish(self, av_frame, image: np.ndarray, decode_ms: float) -> None:
         h, w = image.shape[:2]

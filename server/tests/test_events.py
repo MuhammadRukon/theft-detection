@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.events import events
-from app.events import DetectionsEvent, EventBus, StatsEvent, Track, format_sse
+from app.events import AlertEvent, DetectionsEvent, EventBus, StatsEvent, Track, format_sse
 from app.sources.base import SourceStats
 
 STATS = dict(
@@ -169,3 +169,26 @@ def test_route_merges_pipeline_stats():
         15.0, 5.0, 40.0, 120.0,
     )  # fmt: skip
     assert d["pipeline_status"] == "running"
+
+
+def test_bus_evicts_non_alert_events_first():
+    def alert(i):
+        return AlertEvent(
+            alert_id=i, camera_id="c", type="dwell", score=1, reason="r",
+            track_ids=[1], src_ts=0, ts=0, evidence_url="u",
+        )  # fmt: skip
+
+    async def go(published):
+        bus = EventBus(maxsize=3)
+        bus.bind(asyncio.get_running_loop())
+        with bus.subscribe() as q:
+            for e in published:
+                bus.publish(e)
+            await asyncio.sleep(0)
+            got = [q.get_nowait() for _ in range(q.qsize())]
+            return [getattr(e, "alert_id", None) or e.frames_total for e in got]
+
+    a1, a2, a3, a4 = (alert(i) for i in ("a1", "a2", "a3", "a4"))
+    assert asyncio.run(go([a1, ev(1), ev(2), ev(3), ev(4)])) == ["a1", 3, 4]
+    assert asyncio.run(go([a1, a2, a3, ev(1)])) == ["a1", "a2", "a3"]
+    assert asyncio.run(go([a1, a2, a3, a4])) == ["a2", "a3", "a4"]
