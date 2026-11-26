@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -40,6 +42,8 @@ class DetectionsEvent(BaseModel):
 
 
 class AlertEvent(BaseModel):
+    keep: ClassVar[bool] = True  # EventBus drops other events first; not serialized
+
     alert_id: str
     camera_id: str
     type: str
