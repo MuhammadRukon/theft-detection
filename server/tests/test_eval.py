@@ -116,3 +116,39 @@ def test_eval_replay_raises_dwell_alert_end_to_end(tmp_path, capsys, monkeypatch
     assert (
         main(["--clips", str(tmp_path), "--detector", "fake", "--zones", str(tmp_path / "x")]) == 1
     )
+
+
+def test_score_matches_every_primary_before_repeats():
+    two = [E, {**E, "at_s": 12}]
+    r = score("c", two, [alert(10.5), alert(12.5)])
+    assert (r.caught, r.missed, r.repeats, r.false_alarms) == (2, 0, 0, 0)
+    r = score("c", two, [alert(10.5), alert(12.5), alert(14)])
+    assert (r.caught, r.repeats, r.false_alarms) == (2, 1, 0)
+
+
+def test_main_fails_clip_when_behavior_engine_raises(tmp_path, capsys, monkeypatch):
+    class Boom:
+        def update(self, *a):
+            raise KeyError("rule bug")
+
+    monkeypatch.setattr("tools.eval.make_engine", lambda *a: Boom())
+    make_clip(tmp_path / "normal.mp4")
+    label(tmp_path / "normal.json", [])
+    assert main(["--clips", str(tmp_path), "--detector", "fake"]) == 1
+    assert "behavior engine error" in capsys.readouterr().out
+
+
+def test_main_prints_zones_and_fails_without_zones_for_camera(tmp_path, capsys):
+    make_clip(tmp_path / "normal.mp4")
+    label(tmp_path / "normal.json", [])
+    zones = tmp_path / "zones.json"
+    triangle = [[0, 0], [1, 0], [1, 1]]
+    zones.write_text(json.dumps({"cam1": [{"name": "porch", "polygon": triangle, "dwell_s": 1}]}))
+    args = ["--clips", str(tmp_path), "--detector", "fake", "--zones", str(zones)]
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert str(zones) in out and "porch" in out
+
+    zones.write_text(json.dumps({"other": []}))
+    assert main(args) == 1
+    assert "no zones for camera" in capsys.readouterr().err

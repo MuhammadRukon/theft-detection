@@ -55,25 +55,34 @@ def score(name: str, expected: list[dict], alerts: list) -> ClipResult:
     alerts = sorted(alerts, key=lambda a: a.src_ts)
     r = ClipResult(name, expected=len(expected))
     used: set[int] = set()
-    for e in expected:
-        mine = [
-            i
-            for i, a in enumerate(alerts)
-            if i not in used
-            and a.type == e["type"]
-            and a.zone == e.get("zone")
-            and a.src_ts >= e["at_s"]
-        ]
-        first = [i for i in mine if alerts[i].src_ts <= e["at_s"] + WINDOW_S]
-        if not first:
+
+    def next_unused(e, start):  # first unused alert from `start` on with e's type and zone
+        return next(
+            (
+                i
+                for i, a in enumerate(alerts)
+                if i not in used
+                and (a.type, a.zone) == (e["type"], e.get("zone"))
+                and a.src_ts >= start
+            ),
+            None,
+        )
+
+    # every primary match first, so one expected alert's repeat cannot take another's primary
+    primaries = []
+    for e in sorted(expected, key=lambda e: e["at_s"]):
+        i = next_unused(e, e["at_s"])
+        if i is None or alerts[i].src_ts > e["at_s"] + WINDOW_S:
             continue
-        i = first[0]
         used.add(i)
+        primaries.append((e, i))
         r.caught += 1
         r.delays.append(alerts[i].src_ts - e["at_s"])
-        repeat = [j for j in mine if j > i][:1]  # one repeat allowed; more count as false alarms
-        used.update(repeat)
-        r.repeats += len(repeat)
+    for e, i in primaries:  # one repeat allowed each; more count as false alarms
+        j = next_unused(e, alerts[i].src_ts)
+        if j is not None:
+            used.add(j)
+            r.repeats += 1
     r.missed = r.expected - r.caught
     r.false_alarms = len(alerts) - len(used)
     return r
@@ -132,6 +141,8 @@ def run_clip(
     source.stop()
     if source.error or errors:
         raise RuntimeError(source.error or errors[0])
+    if pipeline.engine_errors:
+        raise RuntimeError(f"{pipeline.engine_errors} behavior engine error(s), see log")
     return alerts, bus.events
 
 
@@ -142,11 +153,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--zones", type=Path, help="zones JSON (default: the server's ZONES_PATH)")
     args = ap.parse_args(argv)
     cfg = Settings()
+    zones_path = args.zones or cfg.zones_path
     try:
-        zones = load_zones(args.zones or cfg.zones_path).get(cfg.camera_id, [])
+        zones = load_zones(zones_path).get(cfg.camera_id, [])
     except ZonesError as e:
         print(f"zones: {e}", file=sys.stderr)
         return 1
+    print(f"zones file: {zones_path}")
+    if not zones:
+        print(f"no zones for camera {cfg.camera_id!r} in {zones_path}", file=sys.stderr)
+        return 1
+    print(f"zones for {cfg.camera_id}: {', '.join(z.name for z in zones)}")
     clips = sorted(args.clips.rglob("*.mp4"))
     if not clips:
         print(f"no *.mp4 clips in {args.clips}", file=sys.stderr)
