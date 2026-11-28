@@ -1,4 +1,7 @@
 # Starts MediaMTX, the FastAPI server and the Vite dev server. Ctrl+C stops all three.
+# -Record also saves the published webcam stream (see docs\recording-clips.md).
+[CmdletBinding()]  # a mistyped switch is an error, not a silent unrecorded run
+param([switch]$Record)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $mtx = Join-Path $root 'infra\bin\mediamtx.exe'
@@ -15,7 +18,11 @@ function Start-Child($file, $argList, $dir) {
 }
 
 $procs = @()
+$prevRecord = $env:MTX_PATHS_CAM1_RECORD
 try {
+    # Always set, so a value left in this window cannot turn recording on.
+    $env:MTX_PATHS_CAM1_RECORD = if ($Record) { 'yes' } else { 'no' }
+    if ($Record) { Write-Host 'RECORDING ON: the cam1 stream is saved to server\data\recordings\cam1\' }
     $procs += Start-Child $mtx 'infra\mediamtx.yml' $root
     $procs += Start-Child 'uv' 'run uvicorn app.main:app --host 127.0.0.1 --port 8000' (Join-Path $root 'server')
     $procs += Start-Child 'bun' 'run dev --host 127.0.0.1 --strictPort' (Join-Path $root 'client')
@@ -26,4 +33,5 @@ try {
 finally {
     # /T kills the tree: uv and bun spawn python and node children.
     foreach ($p in $procs) { if (-not $p.HasExited) { taskkill /PID $p.Id /T /F | Out-Null } }
+    $env:MTX_PATHS_CAM1_RECORD = $prevRecord  # $null removes the variable
 }

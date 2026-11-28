@@ -55,7 +55,7 @@ A person standing inside a zone for the zone's `dwell_s` raises one alert per vi
 
 ## Replay and evaluation
 
-Recorded clips can be replayed through the real pipeline and scored against label files. See [docs/recording-clips.md](docs/recording-clips.md), then:
+Recorded clips can be replayed through the real pipeline and scored against label files. To record test takes from the webcam, start with `.\dev.ps1 -Record` (off by default; takes are saved to `server\data\recordings\` and never deleted automatically). See [docs/recording-clips.md](docs/recording-clips.md), then:
 
 ```powershell
 cd server; uv run python -m tools.eval

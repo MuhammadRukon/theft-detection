@@ -27,3 +27,9 @@ webrtcAdditionalHosts: [127.0.0.1]
 
 paths:
   cam1:
+    # Recording is off by default; `dev.ps1 -Record` turns it on (MTX_PATHS_CAM1_RECORD).
+    # Relative to MediaMTX's working directory, the repo root.
+    recordPath: ./server/data/recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+    recordFormat: fmp4
+    # 0s = never delete; the MediaMTX default (1d) would remove takes.
+    recordDeleteAfter: 0s
