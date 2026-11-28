@@ -137,7 +137,7 @@ Final commit list: `5c1c86b` (recording switch)
 | 1. Recording switch | done | `5c1c86b` | deferred | general-purpose agent. AC1-8 pass. NOT run: ending dev.ps1 with Ctrl+C, Windows PowerShell 5.1, the docs' Move-Item/Remove-Item commands |
 | 2. Record and label (user) | done | — | deferred | five clips; `two-people` not tested; floor tape not confirmed |
 | 3. Eval and report | done | — | deferred | 3 PASS, 2 FAIL, reported as measured |
-| Cross-Validation | pending | — | — | — |
+| Cross-Validation | done except the user's decisions | — | code-review (low): no findings | deletion, merge and push await the user |
 
 ### Phase 1: recording switch
 
@@ -172,3 +172,13 @@ Rerun by the orchestrator with synthetic H.264 published over RTSP (no camera):
 
 - First run on 2026-11-28 at `3a94d22`: 3 PASS, 2 FAIL. Table, causes and limits are in [milestone 3](milestone-3.md). No change made afterwards, so no rerun.
 - AC1-4 pass.
+
+## Final Status
+
+2026-11-28. Recording works, five clips were recorded and labelled, and the eval ran: 3 PASS, 2 FAIL (see [milestone 3](milestone-3.md)). The plan's goal (write down real results) is met; the Milestone 3 pass rules are not.
+
+- `pytest`: 154 passed. `ruff check`: clean. `bun run build` and `bun run lint`: pass.
+- Plain `.\dev.ps1`: API and client answered 200; an 8 s synthetic publish created no recording. The dashboard was not viewed.
+- `code-review` (low) on the branch diff, plans excluded: no findings.
+- No clip, recording or snapshot is tracked by git.
+- Open: Phase 2 AC1 (floor tape and overlay match not confirmed); whether to delete takes, clips and alert snapshots; merge and push.
