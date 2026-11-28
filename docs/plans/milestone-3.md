@@ -40,4 +40,37 @@ Object detection and association (Milestone 4), "left alone" objects, rush/loite
 
 Phases 1-4, integration and review fixes are in; 145 server tests pass. Live webcam run: zone, boxes and dwell alerts worked.
 
-**NOT done:** the replay eval on recorded clips (no clips exist yet), so the Done-when pass rules are unproven. Also not tried live: stepping out under 2 s, stream reconnect, SSE resume. Merged to main at the user's request; run `python -m tools.eval` once clips are recorded.
+**Replay eval:** run on 2026-11-28, results below. The Done-when pass rules are **not met**: both dwell clips fail. Still not tried live: stepping out under 2 s, stream reconnect, SSE resume. Merged to main at the user's request.
+
+## Replay eval, first run (2026-11-28, code at 3a94d22, yolo)
+
+```
+clip                           exp caught missed false repeat  delay_s id_sw  result
+dwell-basic.mp4                  1      0      1     1      0        -     0  FAIL
+dwell-step-out.mp4               1      0      1     1      0        -     0  FAIL
+normal-outside-zone.mp4          0      0      0     0      0        -     0  PASS
+normal-walk-through.mp4          0      0      0     0      0        -     2  PASS
+short-stay.mp4                   0      0      0     0      0        -     0  PASS
+```
+
+Nothing was changed after this run (no code, zone, threshold or label), so there is no rerun.
+
+Each `FAIL` still raised one alert, outside its label's window. Both alerts fired 10 s after the detector first saw the person inside the zone for that visit. Timings below come from a text-only script (alert times, and per 0.2 s sample whether the box bottom-centre was in the zone); no frames were viewed or saved.
+
+- `dwell-basic`: likely cause is label precision. The alert fired at 23.4 s; the label allows 24 to 27 s. The label came from reading a player clock in whole seconds (reported "0:14 / 0:16"), the detector saw entry at about 13.4 s, and the pass window has no early slack.
+- `dwell-step-out`: likely cause is that the take did not contain the scenario. The person was out of the zone for about 3 s (about 18.6 to 21.6 s), over the 2 s grace, so the timer restarted and the alert fired at 31.6 s. The label expected the timer to keep running (alert from 20 s). The brief-absence behaviour is therefore still untested on video.
+
+What each `PASS` covered:
+
+- `normal-outside-zone`: person never counted as inside the zone.
+- `short-stay`: inside for about 7.6 s, under the 10 s threshold.
+- `normal-walk-through`: inside only briefly, in two short passes. 2 ID switches: the person was not detected for about 3 s (likely out of frame) and came back under a new ID, and a second box appeared intermittently near the middle of the picture.
+
+Limits:
+
+- `two-people` was not tested (no second consenting adult available).
+- One person, one small room, one desk webcam. This says nothing about real shop cameras, and the dwell rule is not theft detection.
+- A second "person" box appears now and then at about the same place (feet x near 0.5) in several clips. No second person was available during recording, so it is probably a false detection; not confirmed, as no frames were viewed.
+- `dwell-basic` and `normal-outside-zone` are the first 39.9 s of longer takes. A per-second detection check was run on the `dwell-basic` take before its label was written; the label itself came from the user's own viewing.
+
+Possible follow-ups (not done): label entry times more finely or revisit the early edge of the pass window; record a new step-out take with an absence under 2 s; look into the intermittent second box.

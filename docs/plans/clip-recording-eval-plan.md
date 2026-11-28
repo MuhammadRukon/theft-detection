@@ -135,8 +135,8 @@ Final commit list: `5c1c86b` (recording switch)
 | Phase | Status | Commit | Review | Notes |
 | --- | --- | --- | --- | --- |
 | 1. Recording switch | done | `5c1c86b` | deferred | general-purpose agent. AC1-8 pass. NOT run: ending dev.ps1 with Ctrl+C, Windows PowerShell 5.1, the docs' Move-Item/Remove-Item commands |
-| 2. Record and label (user) | in-progress | — | deferred | — |
-| 3. Eval and report | pending | — | deferred | — |
+| 2. Record and label (user) | done | — | deferred | five clips; `two-people` not tested; floor tape not confirmed |
+| 3. Eval and report | done | — | deferred | 3 PASS, 2 FAIL, reported as measured |
 | Cross-Validation | pending | — | — | — |
 
 ### Phase 1: recording switch
@@ -153,3 +153,22 @@ Rerun by the orchestrator with synthetic H.264 published over RTSP (no camera):
 - [x] AC8: `145 passed`, ruff `All checks passed!`.
 - Deviations: added `[CmdletBinding()]` to `dev.ps1` so a mistyped switch is an error.
 - Known: each synthetic take holds 149 of 150 published frames.
+
+### Phase 2: record and label
+
+- Zone `door` made full height before any labelled take, at the user's request (small room): `[[0.6,0.0],[0.95,0.0],[0.95,1.0],[0.6,1.0]]`, `dwell_s` 10. No floor tape confirmation yet (AC1 open).
+- Takes made before `dwell-basic` were 155 to 157 s (plus one of 0.05 s) and are not used. One live dwell alert fired during them, with the old zone.
+- Deviation: `dwell-basic` is the first 39.9 s of a longer take (stream copy, original kept), not a moved whole take. Result: h264, 39.95 s, 560 frames, 1280x720, largest frame gap 0.37 s.
+- Deviation: before this label was written, a text-only script printed per-second person counts and zone membership for the take (no alert rule, no scoring, no frames saved). The user was not told its timings and gave the entry second from their own viewing.
+- Label `dwell-basic`: one `dwell` in `door`, `at_s` 24 (user reported entry "0:14 / 0:16", first value used; left about 28 s).
+- Label `normal-walk-through`: no expected alert (29.88 s, moved whole).
+- Label `normal-outside-zone`: no expected alert. First 39.9 s of a 43.12 s take (same deviation as `dwell-basic`). An earlier 19.63 s take was not used because the user doubted they had stood long enough.
+- Label `short-stay`: no expected alert (31.31 s, moved whole). Entry and leave seconds not reported.
+- Label `dwell-step-out`: one `dwell` in `door`, `at_s` 20 (user: in 0:10, out 0:18, back 0:20, then 12 to 15 s; 35.4 s, moved whole). Noted before any eval: the absence reads as about 2 s, at the limit of the 2 s grace; a longer one would restart the timer.
+- `two-people`: not tested (no second consenting adult available).
+- AC state: AC2, AC3 (without `two-people`), AC4 pass. AC5: all five clips are 29.9 to 39.9 s; the dwell labels note the entry second. AC6: all labels above were written before the first eval run. AC1: zone is `door` with `dwell_s` 10, but floor tape and overlay match were not confirmed.
+
+### Phase 3: eval and report
+
+- First run on 2026-11-28 at `3a94d22`: 3 PASS, 2 FAIL. Table, causes and limits are in [milestone 3](milestone-3.md). No change made afterwards, so no rerun.
+- AC1-4 pass.
