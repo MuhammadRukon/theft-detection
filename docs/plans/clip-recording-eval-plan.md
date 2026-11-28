@@ -181,4 +181,4 @@ Rerun by the orchestrator with synthetic H.264 published over RTSP (no camera):
 - Plain `.\dev.ps1`: API and client answered 200; an 8 s synthetic publish created no recording. The dashboard was not viewed.
 - `code-review` (low) on the branch diff, plans excluded: no findings.
 - No clip, recording or snapshot is tracked by git.
-- Open: Phase 2 AC1 (floor tape and overlay match not confirmed); whether to delete takes, clips and alert snapshots; merge and push.
+- Open: Phase 2 AC1 (floor tape and overlay match not confirmed); whether to delete takes, clips and alert snapshots; push. Merge into `main` approved by the user (2026-11-28).
